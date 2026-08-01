@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ネオン・ブロックブレイカー</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+        body {
+            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #0b0f19;
+            color: #ffffff;
+            overflow: hidden;
+        }
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .neon-text-cyan {
+            text-shadow: 0 0 10px rgba(6, 182, 212, 0.6), 0 0 20px rgba(6, 182, 212, 0.4);
+        }
+        .neon-text-magenta {
+            text-shadow: 0 0 10px rgba(236, 72, 153, 0.6), 0 0 20px rgba(236, 72, 153, 0.4);
+        }
+        canvas {
+            display: block;
+            touch-action: none;
+        }
+        .btn-action {
+            transition: all 0.15s ease;
+        }
+        .btn-action:active {
+            transform: scale(0.95);
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col justify-between items-center relative select-none">
+
+    <!-- Header HUD -->
+    <header class="w-full max-w-lg px-4 pt-3 pb-2 flex justify-between items-center z-10">
+        <div class="flex items-center space-x-3">
+            <div class="flex flex-col">
+                <span class="text-xs text-slate-400 uppercase tracking-wider font-semibold">スコア</span>
+                <span id="scoreText" class="text-2xl font-bold text-cyan-400 font-mono tracking-tight">0</span>
+            </div>
+            <div class="h-8 w-[1px] bg-slate-800"></div>
+            <div class="flex flex-col">
+                <span class="text-xs text-slate-400 uppercase tracking-wider font-semibold">ハイスコア</span>
+                <span id="highScoreText" class="text-lg font-semibold text-slate-300 font-mono">0</span>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-4">
+            <!-- Stage indicator -->
+            <div class="flex flex-col items-center">
+                <span class="text-xs text-slate-400 uppercase tracking-wider font-semibold">ステージ</span>
+                <span id="stageText" class="text-xl font-bold text-pink-500 font-mono">1</span>
+            </div>
+            <!-- Pause Button -->
+            <button id="pauseBtn" class="w-10 h-10 rounded-full glass-panel flex items-center justify-center text-slate-300 hover:text-white active:scale-95 transition">
+                <i class="fa-solid fa-pause text-sm"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Lives and Combo Info Bar -->
+    <div class="w-full max-w-lg px-4 flex justify-between items-center z-10 text-xs mb-1">
+        <div id="livesContainer" class="flex space-x-1 text-pink-500 text-sm">
+            <i class="fa-solid fa-heart"></i>
+            <i class="fa-solid fa-heart"></i>
+            <i class="fa-solid fa-heart"></i>
+        </div>
+        <div id="comboBadge" class="opacity-0 transition-opacity duration-200 text-amber-400 font-bold tracking-wider">
+            <span id="comboCount">2</span>x コンボ!
+        </div>
+        <div id="audioToggle" class="text-slate-400 hover:text-white cursor-pointer flex items-center gap-1">
+            <i id="audioIcon" class="fa-solid fa-volume-high"></i>
+        </div>
+    </div>
+
+    <!-- Game Canvas Container -->
+    <main class="relative w-full max-w-lg flex-1 flex items-center justify-center p-2 min-h-0">
+        <div id="canvasWrapper" class="relative w-full h-full max-h-[80vh] aspect-[3/4] rounded-2xl overflow-hidden glass-panel border border-slate-700/50 shadow-2xl flex items-center justify-center">
+            <canvas id="gameCanvas" class="w-full h-full border-none outline-none"></canvas>
+
+            <!-- OVERLAY: Start / Title Screen -->
+            <div id="startOverlay" class="absolute inset-0 bg-slate-950/90 backdrop-blur-md flex flex-col justify-center items-center p-6 text-center z-20">
+                <div class="w-16 h-16 mb-4 rounded-2xl bg-gradient-to-tr from-cyan-500 to-pink-500 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+                    <i class="fa-solid fa-cube text-3xl text-white"></i>
+                </div>
+                <h1 class="text-3xl font-extrabold tracking-tight mb-2 text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-pink-400 to-amber-300">
+                    NEON BREAKOUT
+                </h1>
+                <p class="text-sm text-slate-400 mb-6 max-w-xs leading-relaxed">
+                    ブロックを全て破壊して次のステージへ！パドルを操作してボールを打ち返そう。
+                </p>
+                <button id="startBtn" class="btn-action w-full max-w-xs py-3.5 px-6 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold shadow-lg shadow-cyan-500/30 flex items-center justify-center gap-2 text-lg">
+                    <i class="fa-solid fa-play text-sm"></i> ゲームスタート
+                </button>
+            </div>
+
+            <!-- OVERLAY: Pause Screen -->
+            <div id="pauseOverlay" class="hidden absolute inset-0 bg-slate-950/80 backdrop-blur-md flex flex-col justify-center items-center p-6 text-center z-20">
+                <h2 class="text-2xl font-bold mb-6 text-white tracking-wide">一時停止中</h2>
+                <div class="flex flex-col gap-3 w-full max-w-xs">
+                    <button id="resumeBtn" class="btn-action py-3 px-6 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold shadow-lg shadow-cyan-500/20">
+                        再開する
+                    </button>
+                    <button id="restartBtn" class="btn-action py-3 px-6 rounded-xl glass-panel text-slate-200 hover:bg-slate-800 font-semibold">
+                        最初からやり直す
+                    </button>
+                </div>
+            </div>
+
+            <!-- OVERLAY: Game Over Screen -->
+            <div id="gameOverOverlay" class="hidden absolute inset-0 bg-slate-950/90 backdrop-blur-md flex flex-col justify-center items-center p-6 text-center z-20">
+                <div class="w-16 h-16 mb-4 rounded-full bg-rose-500/20 border border-rose-500/50 flex items-center justify-center text-rose-500 text-2xl">
+                    <i class="fa-solid fa-heart-crack"></i>
+                </div>
+                <h2 class="text-3xl font-extrabold text-rose-400 mb-1">GAME OVER</h2>
+                <p class="text-sm text-slate-400 mb-6">ボールを全て落としてしまいました</p>
+                
+                <div class="glass-panel p-4 rounded-xl w-full max-w-xs mb-6 space-y-2">
+                    <div class="flex justify-between text-sm">
+                        <span class="text-slate-400">最終スコア</span>
+                        <span id="finalScore" class="font-bold text-cyan-400">0</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-slate-400">到達ステージ</span>
+                        <span id="finalStage" class="font-bold text-pink-400">1</span>
+                    </div>
+                </div>
+
+                <button id="retryBtn" class="btn-action w-full max-w-xs py-3.5 px-6 rounded-xl bg-gradient-to-r from-pink-500 to-rose-600 text-white font-bold shadow-lg shadow-pink-500/30 flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-rotate-right"></i> もう一度プレイ
+                </button>
+            </div>
+
+            <!-- OVERLAY: Stage Clear Screen -->
+            <div id="clearOverlay" class="hidden absolute inset-0 bg-slate-950/90 backdrop-blur-md flex flex-col justify-center items-center p-6 text-center z-20">
+                <div class="w-16 h-16 mb-4 rounded-full bg-amber-500/20 border border-amber-500/50 flex items-center justify-center text-amber-400 text-2xl">
+                    <i class="fa-solid fa-trophy"></i>
+                </div>
+                <h2 class="text-3xl font-extrabold text-amber-400 mb-1">STAGE CLEAR!</h2>
+                <p class="text-sm text-slate-400 mb-6">素晴らしいテクニックです！</p>
+
+                <button id="nextStageBtn" class="btn-action w-full max-w-xs py-3.5 px-6 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-bold shadow-lg shadow-emerald-500/30 flex items-center justify-center gap-2">
+                    次のステージへ <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <!-- Mobile On-Screen Controls (for devices where drag touch isn't used) -->
+    <footer class="w-full max-w-lg px-4 py-3 flex items-center justify-between gap-4 z-10 md:hidden">
+        <button id="btnLeft" class="btn-action flex-1 py-3 rounded-xl glass-panel active:bg-cyan-500/20 text-slate-200 active:text-cyan-400 flex items-center justify-center text-xl">
+            <i class="fa-solid fa-chevron-left"></i>
+        </button>
+        <button id="btnLaunch" class="btn-action px-5 py-3 rounded-xl bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 font-bold active:bg-cyan-500/40 text-sm tracking-wider flex items-center justify-center gap-1.5 min-w-[120px] transition-all">
+            <i id="btnLaunchIcon" class="fa-solid fa-play text-xs"></i>
+            <span id="btnLaunchText">スタート</span>
+        </button>
+        <button id="btnRight" class="btn-action flex-1 py-3 rounded-xl glass-panel active:bg-cyan-500/20 text-slate-200 active:text-cyan-400 flex items-center justify-center text-xl">
+            <i class="fa-solid fa-chevron-right"></i>
+        </button>
+    </footer>
+
+    <!-- JavaScript Game Logic -->
+    <script>
+        // Sound System using Web Audio API
+        class SoundFX {
+            constructor() {
+                this.ctx = null;
+                this.enabled = true;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    if (AudioContext) {
+                        this.ctx = new AudioContext();
+                    }
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            playTone(freq, type, duration, gainVal = 0.1) {
+                if (!this.enabled || !this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = type;
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                    gain.gain.setValueAtTime(gainVal, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + duration);
+
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + duration);
+                } catch (e) {
+                    // Audio context errors ignored gracefully
+                }
+            }
+
+            paddleHit() { this.playTone(220, 'sine', 0.1, 0.15); }
+            wallHit() { this.playTone(150, 'triangle', 0.08, 0.1); }
+            brickHit(combo = 1) { 
+                const baseFreq = 300 + Math.min(combo * 40, 500);
+                this.playTone(baseFreq, 'square', 0.1, 0.08); 
+            }
+            powerup() {
+                if (!this.enabled || !this.ctx) return;
+                [400, 550, 700, 850].forEach((freq, idx) => {
+                    setTimeout(() => this.playTone(freq, 'sine', 0.08, 0.1), idx * 40);
+                });
+            }
+            loseLife() {
+                if (!this.enabled || !this.ctx) return;
+                this.playTone(180, 'sawtooth', 0.25, 0.2);
+                setTimeout(() => this.playTone(130, 'sawtooth', 0.35, 0.2), 150);
+            }
+            clear() {
+                if (!this.enabled || !this.ctx) return;
+                [350, 440, 523, 659, 783].forEach((f, i) => {
+                    setTimeout(() => this.playTone(f, 'triangle', 0.2, 0.15), i * 80);
+                });
+            }
+        }
+
+        const sound = new SoundFX();
+
+        // Canvas & Scale setup
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const wrapper = document.getElementById('canvasWrapper');
+
+        // Virtual internal resolution for consistent gameplay physics across screens
+        const V_WIDTH = 480;
+        const V_HEIGHT = 640;
+
+        let scale = 1;
+
+        function resizeCanvas() {
+            const rect = wrapper.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            scale = rect.width / V_WIDTH;
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // Game State Variables
+        let gameState = 'START'; // START, PLAYING, PAUSED, GAMEOVER, STAGECLEAR
+        let score = 0;
+        let highScore = parseInt(localStorage.getItem('breakout_high_score') || '0', 10);
+        let stage = 1;
+        let lives = 3;
+        let combo = 0;
+        let comboTimer = null;
+
+        document.getElementById('highScoreText').textContent = highScore;
+
+        // Paddle
+        const paddle = {
+            x: V_WIDTH / 2 - 45,
+            y: V_HEIGHT - 35,
+            width: 90,
+            height: 12,
+            speed: 8,
+            dx: 0,
+            color: '#06b6d4',
+            isExpanded: false,
+            expandTimer: 0
+        };
+
+        // Balls array
+        let balls = [];
+
+        function createBall(x, y, dx = 0, dy = 0, attached = false) {
+            return {
+                x: x,
+                y: y,
+                radius: 6,
+                speed: 5.5 + Math.min(stage * 0.3, 3),
+                dx: dx,
+                dy: dy,
+                attached: attached,
+                color: '#f43f5e',
+                isFireball: false,
+                fireTimer: 0
+            };
+        }
+
+        // Bricks grid
+        let bricks = [];
+        const BRICK_ROWS = 6;
+        const BRICK_COLS = 7;
+        const BRICK_PADDING = 6;
+        const BRICK_OFFSET_TOP = 50;
+        const BRICK_OFFSET_LEFT = 15;
+        const BRICK_WIDTH = (V_WIDTH - (BRICK_OFFSET_LEFT * 2) - (BRICK_PADDING * (BRICK_COLS - 1))) / BRICK_COLS;
+        const BRICK_HEIGHT = 18;
+
+        // Brick Types Definition
+        const BRICK_TYPES = {
+            NORMAL: { hp: 1, score: 10, color: '#06b6d4' },    // Cyan
+            HARD:   { hp: 2, score: 25, color: '#f59e0b' },    // Amber
+            STRONG: { hp: 3, score: 50, color: '#ec4899' },    // Magenta
+            SOLID:  { hp: -1, score: 0, color: '#64748b' }     // Unbreakable Gray
+        };
+
+        // Falling Items
+        let items = [];
+        const ITEM_TYPES = {
+            EXPAND:  { color: '#10b981', icon: '↔', label: 'パドル拡張' },
+            MULTI:   { color: '#3b82f6', icon: '∴', label: 'マルチボール' },
+            LIFE:    { color: '#f43f5e', icon: '♥', label: 'ライフ+1' },
+            FIRE:    { color: '#f97316', icon: '🔥', label: '貫通ボール' }
+        };
+
+        // Particles
+        let particles = [];
+
+        function createParticles(x, y, color, count = 12) {
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 4 + 1;
+                particles.push({
+                    x: x,
+                    y: y,
+                    dx: Math.cos(angle) * speed,
+                    dy: Math.sin(angle) * speed,
+                    size: Math.random() * 3 + 2,
+                    color: color,
+                    alpha: 1,
+                    life: Math.random() * 20 + 20
+                });
+            }
+        }
+
+        function generateStage(stageNum) {
+            bricks = [];
+            const rows = Math.min(BRICK_ROWS + Math.floor(stageNum / 2), 9);
+
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < BRICK_COLS; c++) {
+                    // Stage specific patterns
+                    let rand = Math.random();
+                    let type = BRICK_TYPES.NORMAL;
+
+                    if (stageNum > 1 && rand < 0.25) {
+                        type = BRICK_TYPES.HARD;
+                    } else if (stageNum > 2 && rand > 0.85) {
+                        type = BRICK_TYPES.STRONG;
+                    }
+
+                    // Occasional solid brick in higher stages
+                    if (stageNum >= 3 && r === 2 && (c === 2 || c === 4) && Math.random() < 0.5) {
+                        type = BRICK_TYPES.SOLID;
+                    }
+
+                    // Top rows generally harder
+                    if (r === 0 && stageNum > 1) {
+                        type = (type === BRICK_TYPES.NORMAL) ? BRICK_TYPES.HARD : type;
+                    }
+
+                    const brickX = BRICK_OFFSET_LEFT + c * (BRICK_WIDTH + BRICK_PADDING);
+                    const brickY = BRICK_OFFSET_TOP + r * (BRICK_HEIGHT + BRICK_PADDING);
+
+                    bricks.push({
+                        x: brickX,
+                        y: brickY,
+                        width: BRICK_WIDTH,
+                        height: BRICK_HEIGHT,
+                        hp: type.hp,
+                        maxHp: type.hp,
+                        score: type.score,
+                        color: type.color,
+                        type: type
+                    });
+                }
+            }
+        }
+
+        let keyLeft = false;
+        let keyRight = false;
+        let touchStartX = null;
+
+        // Keyboard Controls
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keyLeft = true;
+            if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keyRight = true;
+            if (e.key === ' ' || e.key === 'Spacebar') {
+                launchAttachedBalls();
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keyLeft = false;
+            if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keyRight = false;
+        });
+
+        // Touch & Mouse direct paddle movement on canvas
+        function handlePointerMove(clientX) {
+            if (gameState !== 'PLAYING') return;
+            const rect = canvas.getBoundingClientRect();
+            const canvasX = (clientX - rect.left) / scale;
+            paddle.x = Math.max(0, Math.min(V_WIDTH - paddle.width, canvasX - paddle.width / 2));
+        }
+
+        canvas.addEventListener('mousemove', (e) => {
+            handlePointerMove(e.clientX);
+        });
+
+        canvas.addEventListener('touchstart', (e) => {
+            sound.init();
+            if (e.touches.length > 0) {
+                touchStartX = e.touches[0].clientX;
+                handlePointerMove(e.touches[0].clientX);
+                launchAttachedBalls();
+            }
+        }, { passive: true });
+
+        canvas.addEventListener('touchmove', (e) => {
+            if (e.touches.length > 0) {
+                handlePointerMove(e.touches[0].clientX);
+            }
+        }, { passive: true });
+
+        // On-screen UI Buttons for mobile
+        const btnLeft = document.getElementById('btnLeft');
+        const btnRight = document.getElementById('btnRight');
+        const btnLaunch = document.getElementById('btnLaunch');
+        const btnLaunchText = document.getElementById('btnLaunchText');
+        const btnLaunchIcon = document.getElementById('btnLaunchIcon');
+
+        const bindBtn = (btn, onPress, onRelease) => {
+            btn.addEventListener('touchstart', (e) => { e.preventDefault(); sound.init(); onPress(); }, { passive: false });
+            btn.addEventListener('touchend', (e) => { e.preventDefault(); if (onRelease) onRelease(); }, { passive: false });
+            btn.addEventListener('mousedown', (e) => { e.preventDefault(); sound.init(); onPress(); });
+            btn.addEventListener('mouseup', (e) => { if (onRelease) onRelease(); });
+        };
+
+        bindBtn(btnLeft, () => { keyLeft = true; }, () => { keyLeft = false; });
+        bindBtn(btnRight, () => { keyRight = true; }, () => { keyRight = false; });
+        
+        // Smart launcher button handling
+        bindBtn(btnLaunch, () => {
+            handleMainAction();
+        });
+
+        function handleMainAction() {
+            sound.init();
+            if (gameState === 'START') {
+                resetGame();
+                startOverlay.classList.add('hidden');
+                gameState = 'PLAYING';
+            } else if (gameState === 'PLAYING') {
+                const hasAttached = balls.some(b => b.attached);
+                if (hasAttached) {
+                    launchAttachedBalls();
+                }
+            } else if (gameState === 'PAUSED') {
+                gameState = 'PLAYING';
+                pauseOverlay.classList.add('hidden');
+            } else if (gameState === 'GAMEOVER') {
+                gameOverOverlay.classList.add('hidden');
+                resetGame();
+                gameState = 'PLAYING';
+            } else if (gameState === 'STAGECLEAR') {
+                clearOverlay.classList.add('hidden');
+                stage++;
+                initStage();
+                gameState = 'PLAYING';
+            }
+        }
+
+        function updateBottomButton() {
+            if (!btnLaunchText || !btnLaunchIcon) return;
+
+            if (gameState === 'START') {
+                btnLaunchText.textContent = 'スタート';
+                btnLaunchIcon.className = 'fa-solid fa-play text-xs';
+            } else if (gameState === 'PLAYING') {
+                const hasAttached = balls.some(b => b.attached);
+                if (hasAttached) {
+                    btnLaunchText.textContent = '発射';
+                    btnLaunchIcon.className = 'fa-solid fa-rocket text-xs';
+                } else {
+                    btnLaunchText.textContent = 'プレイ中';
+                    btnLaunchIcon.className = 'fa-solid fa-bolt text-xs';
+                }
+            } else if (gameState === 'PAUSED') {
+                btnLaunchText.textContent = '再開';
+                btnLaunchIcon.className = 'fa-solid fa-play text-xs';
+            } else if (gameState === 'GAMEOVER') {
+                btnLaunchText.textContent = 'リトライ';
+                btnLaunchIcon.className = 'fa-solid fa-rotate-right text-xs';
+            } else if (gameState === 'STAGECLEAR') {
+                btnLaunchText.textContent = '次へ';
+                btnLaunchIcon.className = 'fa-solid fa-arrow-right text-xs';
+            }
+        }
+
+        function launchAttachedBalls() {
+            balls.forEach(b => {
+                if (b.attached) {
+                    b.attached = false;
+                    b.dx = (Math.random() - 0.5) * 4;
+                    b.dy = -b.speed;
+                }
+            });
+        }
+
+        const startOverlay = document.getElementById('startOverlay');
+        const pauseOverlay = document.getElementById('pauseOverlay');
+        const gameOverOverlay = document.getElementById('gameOverOverlay');
+        const clearOverlay = document.getElementById('clearOverlay');
+
+        document.getElementById('startBtn').addEventListener('click', () => {
+            sound.init();
+            resetGame();
+            startOverlay.classList.add('hidden');
+            gameState = 'PLAYING';
+        });
+
+        document.getElementById('pauseBtn').addEventListener('click', () => {
+            if (gameState === 'PLAYING') {
+                gameState = 'PAUSED';
+                pauseOverlay.classList.remove('hidden');
+            } else if (gameState === 'PAUSED') {
+                gameState = 'PLAYING';
+                pauseOverlay.classList.add('hidden');
+            }
+        });
+
+        document.getElementById('resumeBtn').addEventListener('click', () => {
+            gameState = 'PLAYING';
+            pauseOverlay.classList.add('hidden');
+        });
+
+        document.getElementById('restartBtn').addEventListener('click', () => {
+            pauseOverlay.classList.add('hidden');
+            resetGame();
+            gameState = 'PLAYING';
+        });
+
+        document.getElementById('retryBtn').addEventListener('click', () => {
+            gameOverOverlay.classList.add('hidden');
+            resetGame();
+            gameState = 'PLAYING';
+        });
+
+        document.getElementById('nextStageBtn').addEventListener('click', () => {
+            clearOverlay.classList.add('hidden');
+            stage++;
+            initStage();
+            gameState = 'PLAYING';
+        });
+
+        // Audio Mute Toggle
+        const audioToggle = document.getElementById('audioToggle');
+        const audioIcon = document.getElementById('audioIcon');
+
+        audioToggle.addEventListener('click', () => {
+            sound.enabled = !sound.enabled;
+            if (sound.enabled) {
+                audioIcon.className = 'fa-solid fa-volume-high text-cyan-400';
+            } else {
+                audioIcon.className = 'fa-solid fa-volume-xmark text-slate-500';
+            }
+        });
+
+        function updateHUD() {
+            document.getElementById('scoreText').textContent = score;
+            document.getElementById('highScoreText').textContent = highScore;
+            document.getElementById('stageText').textContent = stage;
+
+            // Update Lives UI
+            const livesContainer = document.getElementById('livesContainer');
+            livesContainer.innerHTML = '';
+            for (let i = 0; i < lives; i++) {
+                livesContainer.innerHTML += '<i class="fa-solid fa-heart"></i>';
+            }
+
+            // Update Combo UI
+            const comboBadge = document.getElementById('comboBadge');
+            if (combo > 1) {
+                document.getElementById('comboCount').textContent = combo;
+                comboBadge.classList.remove('opacity-0');
+            } else {
+                comboBadge.classList.add('opacity-0');
+            }
+        }
+
+        function triggerCombo() {
+            combo++;
+            if (comboTimer) clearTimeout(comboTimer);
+            comboTimer = setTimeout(() => {
+                combo = 0;
+                updateHUD();
+            }, 2500);
+            updateHUD();
+        }
+
+        function addScore(points) {
+            const multiplier = combo > 1 ? combo : 1;
+            score += points * multiplier;
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('breakout_high_score', highScore);
+            }
+            updateHUD();
+        }
+
+        function resetGame() {
+            score = 0;
+            stage = 1;
+            lives = 3;
+            combo = 0;
+            initStage();
+        }
+
+        function initStage() {
+            paddle.width = 90;
+            paddle.isExpanded = false;
+            paddle.x = V_WIDTH / 2 - paddle.width / 2;
+            
+            items = [];
+            particles = [];
+            
+            balls = [createBall(V_WIDTH / 2, paddle.y - 10, 0, 0, true)];
+            generateStage(stage);
+            updateHUD();
+        }
+
+        function update() {
+            updateBottomButton();
+            if (gameState !== 'PLAYING') return;
+
+            // Move Paddle with Keyboard
+            if (keyLeft) paddle.x -= paddle.speed;
+            if (keyRight) paddle.x += paddle.speed;
+            paddle.x = Math.max(0, Math.min(V_WIDTH - paddle.width, paddle.x));
+
+            // Timers
+            if (paddle.isExpanded) {
+                paddle.expandTimer--;
+                if (paddle.expandTimer <= 0) {
+                    paddle.isExpanded = false;
+                    paddle.width = 90;
+                }
+            }
+
+            // Update Balls
+            let activeBalls = 0;
+
+            balls.forEach(ball => {
+                if (ball.attached) {
+                    ball.x = paddle.x + paddle.width / 2;
+                    ball.y = paddle.y - ball.radius - 2;
+                    activeBalls++;
+                    return;
+                }
+
+                if (ball.isFireball) {
+                    ball.fireTimer--;
+                    if (ball.fireTimer <= 0) ball.isFireball = false;
+                }
+
+                // Ball Movement
+                ball.x += ball.dx;
+                ball.y += ball.dy;
+
+                // Wall Collisions
+                if (ball.x - ball.radius <= 0) {
+                    ball.x = ball.radius;
+                    ball.dx *= -1;
+                    sound.wallHit();
+                } else if (ball.x + ball.radius >= V_WIDTH) {
+                    ball.x = V_WIDTH - ball.radius;
+                    ball.dx *= -1;
+                    sound.wallHit();
+                }
+
+                if (ball.y - ball.radius <= 0) {
+                    ball.y = ball.radius;
+                    ball.dy *= -1;
+                    sound.wallHit();
+                }
+
+                // Paddle Collision
+                if (
+                    ball.dy > 0 &&
+                    ball.y + ball.radius >= paddle.y &&
+                    ball.y - ball.radius <= paddle.y + paddle.height &&
+                    ball.x >= paddle.x &&
+                    ball.x <= paddle.x + paddle.width
+                ) {
+                    sound.paddleHit();
+                    ball.y = paddle.y - ball.radius;
+                    
+                    // Angle calculation based on hit position
+                    const hitPoint = (ball.x - (paddle.x + paddle.width / 2)) / (paddle.width / 2);
+                    const maxAngle = Math.PI / 3; // 60 deg max
+                    const angle = hitPoint * maxAngle;
+
+                    ball.dx = ball.speed * Math.sin(angle);
+                    ball.dy = -ball.speed * Math.cos(angle);
+
+                    createParticles(ball.x, ball.y, paddle.color, 6);
+                }
+
+                // Brick Collisions
+                for (let i = 0; i < bricks.length; i++) {
+                    const b = bricks[i];
+                    if (b.hp === 0) continue;
+
+                    if (
+                        ball.x + ball.radius > b.x &&
+                        ball.x - ball.radius < b.x + b.width &&
+                        ball.y + ball.radius > b.y &&
+                        ball.y - ball.radius < b.y + b.height
+                    ) {
+                        triggerCombo();
+                        sound.brickHit(combo);
+
+                        if (!ball.isFireball || b.type === BRICK_TYPES.SOLID) {
+                            // Simple bounce calculation
+                            const prevX = ball.x - ball.dx;
+                            const prevY = ball.y - ball.dy;
+
+                            if (prevX + ball.radius <= b.x || prevX - ball.radius >= b.x + b.width) {
+                                ball.dx *= -1;
+                            } else {
+                                ball.dy *= -1;
+                            }
+                        }
+
+                        // Damage Brick if not solid
+                        if (b.hp > 0) {
+                            b.hp--;
+                            createParticles(ball.x, ball.y, b.color, 8);
+
+                            if (b.hp === 0) {
+                                addScore(b.score);
+
+                                // Chance to spawn Powerup Item
+                                if (Math.random() < 0.2) {
+                                    spawnItem(b.x + b.width / 2, b.y + b.height / 2);
+                                }
+                            }
+                        }
+                        break;
+                    }
+                }
+
+                // Check if ball fell below screen
+                if (ball.y - ball.radius < V_HEIGHT) {
+                    activeBalls++;
+                }
+            });
+
+            // Remove out of bound balls
+            balls = balls.filter(b => b.y - b.radius < V_HEIGHT);
+
+            // Handle All Balls Lost
+            if (activeBalls === 0) {
+                sound.loseLife();
+                lives--;
+                updateHUD();
+
+                if (lives <= 0) {
+                    gameState = 'GAMEOVER';
+                    document.getElementById('finalScore').textContent = score;
+                    document.getElementById('finalStage').textContent = stage;
+                    gameOverOverlay.classList.remove('hidden');
+                } else {
+                    // Respawn a single attached ball
+                    balls.push(createBall(V_WIDTH / 2, paddle.y - 10, 0, 0, true));
+                }
+            }
+
+            // Check Stage Clear (All breakable bricks destroyed)
+            const remainingDestructible = bricks.filter(b => b.hp > 0);
+            if (remainingDestructible.length === 0) {
+                gameState = 'STAGECLEAR';
+                sound.clear();
+                clearOverlay.classList.remove('hidden');
+            }
+
+            // Update Items
+            items.forEach((item, idx) => {
+                item.y += item.speed;
+
+                // Paddle Collects Item
+                if (
+                    item.y + item.radius >= paddle.y &&
+                    item.y - item.radius <= paddle.y + paddle.height &&
+                    item.x >= paddle.x &&
+                    item.x <= paddle.x + paddle.width
+                ) {
+                    sound.powerup();
+                    applyItemEffect(item.type);
+                    createParticles(item.x, item.y, item.type.color, 12);
+                    items.splice(idx, 1);
+                }
+            });
+
+            // Filter out fallen items
+            items = items.filter(item => item.y < V_HEIGHT);
+
+            // Update Particles
+            particles.forEach(p => {
+                p.x += p.dx;
+                p.y += p.dy;
+                p.alpha -= 0.025;
+            });
+            particles = particles.filter(p => p.alpha > 0);
+        }
+
+        function spawnItem(x, y) {
+            const keys = Object.keys(ITEM_TYPES);
+            const randKey = keys[Math.floor(Math.random() * keys.length)];
+            const type = ITEM_TYPES[randKey];
+
+            items.push({
+                x: x,
+                y: y,
+                radius: 10,
+                speed: 2,
+                type: type
+            });
+        }
+
+        function applyItemEffect(type) {
+            if (type === ITEM_TYPES.EXPAND) {
+                paddle.isExpanded = true;
+                paddle.width = 130;
+                paddle.expandTimer = 600; // ~10 sec
+            } else if (type === ITEM_TYPES.MULTI) {
+                // Duplicate current active balls
+                const count = balls.length;
+                for (let i = 0; i < count; i++) {
+                    const b = balls[i];
+                    if (!b.attached) {
+                        balls.push(createBall(b.x, b.y, -b.dx || 3, b.dy));
+                    }
+                }
+            } else if (type === ITEM_TYPES.LIFE) {
+                lives = Math.min(lives + 1, 5);
+                updateHUD();
+            } else if (type === ITEM_TYPES.FIRE) {
+                balls.forEach(b => {
+                    b.isFireball = true;
+                    b.fireTimer = 450; // ~7.5 sec
+                });
+            }
+        }
+
+        function render() {
+            // Save state & scale virtual canvas to actual display canvas
+            ctx.save();
+            ctx.scale(scale, scale);
+
+            // Clear Background
+            ctx.fillStyle = '#0b0f19';
+            ctx.fillRect(0, 0, V_WIDTH, V_HEIGHT);
+
+            // Subtle Background Grid
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.02)';
+            ctx.lineWidth = 1;
+            for (let x = 0; x < V_WIDTH; x += 24) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, V_HEIGHT);
+                ctx.stroke();
+            }
+            for (let y = 0; y < V_HEIGHT; y += 24) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(V_WIDTH, y);
+                ctx.stroke();
+            }
+
+            // Draw Bricks
+            bricks.forEach(b => {
+                if (b.hp === 0) return;
+
+                ctx.save();
+                ctx.fillStyle = b.color;
+                
+                // Dim brick if damaged
+                if (b.maxHp > 1 && b.hp < b.maxHp) {
+                    ctx.globalAlpha = b.hp / b.maxHp + 0.2;
+                }
+
+                // Rounded Rect for Bricks
+                ctx.beginPath();
+                ctx.roundRect(b.x, b.y, b.width, b.height, 4);
+                ctx.fill();
+
+                // Glow / Border for Hard bricks
+                if (b.type === BRICK_TYPES.HARD || b.type === BRICK_TYPES.STRONG) {
+                    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                }
+
+                ctx.restore();
+            });
+
+            // Draw Paddle
+            ctx.save();
+            ctx.fillStyle = paddle.isExpanded ? '#10b981' : paddle.color;
+            ctx.shadowColor = paddle.isExpanded ? '#10b981' : paddle.color;
+            ctx.shadowBlur = 12;
+
+            ctx.beginPath();
+            ctx.roundRect(paddle.x, paddle.y, paddle.width, paddle.height, 6);
+            ctx.fill();
+            ctx.restore();
+
+            // Draw Balls
+            balls.forEach(b => {
+                ctx.save();
+                ctx.fillStyle = b.isFireball ? '#f97316' : '#38bdf8';
+                ctx.shadowColor = b.isFireball ? '#f97316' : '#38bdf8';
+                ctx.shadowBlur = b.isFireball ? 16 : 8;
+
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+
+            // Draw Falling Items
+            items.forEach(item => {
+                ctx.save();
+                ctx.fillStyle = item.type.color;
+                ctx.shadowColor = item.type.color;
+                ctx.shadowBlur = 8;
+
+                ctx.beginPath();
+                ctx.arc(item.x, item.y, item.radius, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 11px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(item.type.icon, item.x, item.y);
+                ctx.restore();
+            });
+
+            // Draw Particles
+            particles.forEach(p => {
+                ctx.save();
+                ctx.globalAlpha = p.alpha;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+
+            ctx.restore();
+        }
+
+        function gameLoop() {
+            update();
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // 初期化処理（iFrameプレビュー環境でも確実に実行される構成）
+        function initApp() {
+            resizeCanvas();
+            initStage();
+            gameLoop();
+        }
+
+        if (document.readyState === 'complete' || document.readyState === 'interactive') {
+            setTimeout(initApp, 100);
+        } else {
+            document.addEventListener('DOMContentLoaded', initApp);
+        }
+
+        // プレビュー画面のサイズ変更に自動追従
+        if (window.ResizeObserver && wrapper) {
+            new ResizeObserver(() => {
+                resizeCanvas();
+            }).observe(wrapper);
+        }
+    </script>
+</body>
+</html>
