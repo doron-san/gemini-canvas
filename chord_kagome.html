@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>かごめ - U-Fret再現・インタラクティブ楽譜</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@600;700&family=Noto+Sans+JP:wght@500;700;900&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        amber: { 400: '#fbbf24', 500: '#f59e0b', 600: '#d97706' },
+                        slate: { 850: '#152033', 900: '#0f172a', 950: '#020617' }
+                    },
+                    fontFamily: {
+                        sans: ['"Noto Sans JP"', 'sans-serif'],
+                        mono: ['"Fira Code"', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .chord-mark {
+            font-family: 'Fira Code', monospace;
+            font-weight: 700;
+            line-height: 1;
+        }
+        .chord-lyric-pair {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: flex-start;
+            vertical-align: bottom;
+            margin-right: 0.2rem;
+            margin-bottom: 0.6rem;
+        }
+        .chord-lyric-pair .chord {
+            min-height: 1.35rem;
+            color: #fbbf24;
+            font-size: 0.88rem;
+            font-weight: 700;
+            font-family: 'Fira Code', monospace;
+            user-select: none;
+            padding: 0 3px;
+            border-radius: 4px;
+            transition: all 0.15s ease;
+        }
+        .chord-lyric-pair .chord:hover {
+            color: #f59e0b;
+            background-color: rgba(251, 191, 36, 0.15);
+        }
+        .chord-lyric-pair .lyric {
+            font-size: 0.98rem;
+            color: #f8fafc;
+            font-weight: 500;
+            white-space: pre;
+            line-height: 1.5;
+        }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans flex flex-col selection:bg-amber-500 selection:text-slate-900 relative">
+
+    <header class="border-b border-slate-800 bg-slate-900/95 backdrop-blur sticky top-0 z-40 shadow-md">
+        <div class="max-w-4xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-bold text-xl shadow-md shadow-amber-500/20">
+                    <i class="fa-solid fa-guitar"></i>
+                </div>
+                <div>
+                    <h1 class="text-base md:text-lg font-bold leading-tight flex items-center gap-2">
+                        かごめ <span class="text-xs text-amber-400 font-normal border border-amber-500/40 px-2 py-0.5 rounded-full bg-amber-500/10">優里</span>
+                    </h1>
+                    <p class="text-[11px] text-slate-400">U-Fret画像完全再現・インタラクティブ楽譜</p>
+                </div>
+            </div>
+
+            <!-- コントロールエリア (音色プリセット ＆ Capo切替 ＆ 編集モード) -->
+            <div class="flex flex-wrap items-center gap-2">
+                <!-- 音色プリセット選択Dropdown -->
+                <div class="flex items-center gap-1.5 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
+                    <i class="fa-solid fa-sliders text-amber-400 text-xs"></i>
+                    <select id="soundPresetSelect" onchange="changeSoundPreset(this.value)" class="bg-transparent text-amber-300 text-xs font-bold focus:outline-none cursor-pointer">
+                        <option value="acoustic" selected class="bg-slate-900 text-slate-100">アコースティックギター (リッチ)</option>
+                        <option value="elepi" class="bg-slate-900 text-slate-100">エレピ (透明感・ベル音)</option>
+                        <option value="nylon" class="bg-slate-900 text-slate-100">ナイロン弦ギター (温かい)</option>
+                        <option value="ukulele" class="bg-slate-900 text-slate-100">ウクレレ (コロコロ軽快)</option>
+                        <option value="organ" class="bg-slate-900 text-slate-100">オルガン (重厚・持続音)</option>
+                    </select>
+                </div>
+
+                <!-- Capo / 原曲キー 切替 -->
+                <div class="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
+                    <button id="btnCapo2Key" onclick="setCapoMode('capo2')" class="px-2.5 py-1 rounded-lg font-bold transition bg-amber-500 text-slate-950 shadow">
+                        Capo 2 (画像通り)
+                    </button>
+                    <button id="btnOriginalKey" onclick="setCapoMode('original')" class="px-2.5 py-1 rounded-lg font-bold text-slate-400 hover:text-slate-200 transition">
+                        原曲実音 (+2)
+                    </button>
+                </div>
+
+                <!-- 編集モードボタン -->
+                <button onclick="openEditorModal()" class="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-amber-400 text-xs font-bold px-3 py-1.5 rounded-xl border border-slate-700 transition active:scale-95">
+                    <i class="fa-solid fa-pen-to-square"></i>
+                    <span>楽譜編集</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-4xl w-full mx-auto p-4 md:p-6 my-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-8 shadow-2xl space-y-6">
+            
+            <!-- ステータス表示 -->
+            <div class="flex flex-wrap items-center justify-between pb-4 border-b border-slate-800 text-xs text-slate-400 gap-2">
+                <div class="flex flex-wrap items-center gap-4">
+                    <span><i class="fa-solid fa-sliders text-amber-400 mr-1"></i> 表示: <strong id="capoDisplayStatus" class="text-amber-400">Capo 2 (画像通り)</strong></span>
+                    <span><i class="fa-solid fa-wave-square text-emerald-400 mr-1"></i> 音色: <strong id="presetDisplayStatus" class="text-emerald-400">アコースティックギター (リッチ)</strong></span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span id="saveStatusIndicator" class="text-slate-400 font-medium flex items-center gap-1 text-[11px]">
+                        <i class="fa-solid fa-floppy-disk text-slate-500"></i> LocalStorage同期完了
+                    </span>
+                    <button onclick="resetToDefaultData()" class="text-slate-500 hover:text-rose-400 text-xs underline transition">
+                        初期化
+                    </button>
+                </div>
+            </div>
+
+            <!-- 楽譜描画エリア -->
+            <div id="scoreContainer" class="space-y-6">
+                <!-- JavaScriptで安全に動的生成 -->
+            </div>
+        </div>
+    </main>
+
+    <!-- 楽譜編集モーダル -->
+    <div id="editorModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl flex flex-col max-h-[90vh]">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
+                <h3 class="text-base font-bold text-slate-100 flex items-center gap-2">
+                    <i class="fa-solid fa-code text-amber-400"></i> 楽譜データ構造編集 (JSON)
+                </h3>
+                <button onclick="closeEditorModal()" class="text-slate-400 hover:text-slate-100 p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            
+            <p class="text-xs text-slate-400 mb-3">
+                セクション構造、コード名、歌詞文字列を修正できます。保存するとブラウザの <code>localStorage</code> に保持されます。
+            </p>
+
+            <textarea id="editorJsonInput" class="flex-1 min-h-[300px] w-full bg-slate-950 border border-slate-800 rounded-xl p-3 font-mono text-xs text-amber-300 focus:outline-none focus:border-amber-500 resize-y leading-relaxed mb-4"></textarea>
+
+            <div class="flex items-center justify-end gap-3 pt-2 border-t border-slate-800">
+                <button onclick="closeEditorModal()" class="px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 transition">
+                    キャンセル
+                </button>
+                <button onclick="saveEditorData()" class="px-4 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md transition">
+                    保存して反映
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- トースト通知 -->
+    <div id="toastNotification" class="fixed bottom-6 right-6 bg-slate-800 border border-slate-700 text-slate-100 px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 transition-all duration-300 transform translate-y-16 opacity-0 pointer-events-none z-50">
+        <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400 text-base"></i>
+        <span id="toastMessage" class="text-xs font-medium">通知メッセージ</span>
+    </div>
+
+    <script>
+        // Capo 2 ➔ 原曲実音 (+2半音) 換算マップ
+        const capo2ToOriginalMap = {
+            "C#m7": "D#m7", "B": "C#", "A": "B", "E": "F#", "B/D#": "C#/F",
+            "Gdim": "Adim", "G#": "A#", "Cdim": "Ddim", "Bsus4": "C#sus4",
+            "D♭sus4": "E♭sus4", "D♭": "E♭", "D#m7": "Fm7", "G♭": "A♭",
+            "Adim": "Cdim", "A#": "C", "A♭m7": "A#m7", "Cm7": "Dm7",
+            "A♭": "B♭", "D#": "F", "F#dim": "G#dim", "G": "A",
+            "Fm7": "Gm7", "A#/D": "C/E", "Bdim": "C#dim"
+        };
+
+        // 和音構成音（周波数 Hz アレイ）
+        const CHORD_FREQUENCIES = {
+            "C#m7":    [138.59, 207.65, 277.18, 329.63, 493.88],
+            "B":       [123.47, 185.00, 246.94, 311.13, 369.99],
+            "A":       [110.00, 164.81, 220.00, 277.18, 329.63],
+            "E":       [82.41, 123.47, 164.81, 207.65, 246.94, 329.63],
+            "B/D#":    [155.56, 185.00, 246.94, 311.13],
+            "Gdim":    [196.00, 233.08, 277.18, 329.63, 392.00],
+            "G#":      [103.83, 155.56, 207.65, 261.63],
+            "Cdim":    [261.63, 311.13, 369.99, 440.00, 523.25],
+            "Bsus4":   [123.47, 185.00, 246.94, 329.63, 369.99],
+            "D♭sus4":  [138.59, 207.65, 277.18, 369.99],
+            "D♭":      [138.59, 207.65, 277.18, 349.23],
+            "D#m7":    [155.56, 233.08, 311.13, 369.99, 554.37],
+            "G♭":      [92.50, 138.59, 185.00, 233.08],
+            "Adim":    [220.00, 261.63, 311.13, 369.99, 440.00],
+            "A#":      [116.54, 174.61, 233.08, 293.66],
+            "A♭m7":    [103.83, 155.56, 207.65, 246.94, 369.99],
+            "Cm7":     [130.81, 196.00, 261.63, 311.13, 466.16],
+            "A♭":      [103.83, 155.56, 207.65, 261.63, 311.13],
+            "D#":      [155.56, 233.08, 311.13, 392.00],
+            "F#dim":   [185.00, 220.00, 261.63, 311.13, 369.99],
+            "G":       [98.00, 123.47, 146.83, 196.00, 246.94, 293.66],
+            "Fm7":     [87.31, 130.81, 174.61, 207.65, 311.13],
+            "A#/D":    [146.83, 174.61, 233.08, 293.66],
+            "Bdim":    [246.94, 293.66, 349.23, 415.30, 493.88]
+        };
+
+        let activeScoreData = [];
+        let currentCapoMode = 'capo2';
+        let currentPreset = 'acoustic';
+        let audioCtx = null;
+
+        // LocalStorageキー名（最新全曲対応バージョン）
+        const STORAGE_KEY = 'ufret_kagome_score_data_v2';
+
+        // 楽譜全編（前奏〜後奏）完全再現データ
+        const DEFAULT_SCORE_DATA = [
+            {
+                title: "前奏",
+                content: [
+                    { chordsOnly: ["C#m7", "B", "A", "E", "B/D#"] },
+                    { chordsOnly: ["C#m7", "B", "A"] }
+                ]
+            },
+            {
+                title: "1Aメロ",
+                content: [
+                    {
+                        pairs: [
+                            { c: "C#m7", t: "　" }, { c: "B", t: "拳" }, { c: "", t: "をまた" },
+                            { c: "A", t: "握" }, { c: "", t: "りしめ" }, { c: "E", t: "た" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "A", t: "怒" }, { c: "", t: "りのまま　" },
+                            { c: "E", t: "　" }, { c: "Gdim", t: "恨" }, { c: "", t: "んでや" },
+                            { c: "G#", t: "る" }, { c: "", t: "のさ" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "C#m7", t: "　" }, { c: "B", t: "そ" }, { c: "", t: "いつの" },
+                            { c: "A", t: "胸" }, { c: "", t: "ぐらをつ" }, { c: "E", t: "かんで" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "A", t: "力" }, { c: "", t: "のまま　" },
+                            { c: "E", t: "　" }, { c: "Gdim", t: "殺" }, { c: "", t: "してや" },
+                            { c: "G#", t: "る" }, { c: "", t: "のさ" }
+                        ]
+                    }
+                ]
+            },
+            {
+                title: "1Bメロ",
+                content: [
+                    {
+                        pairs: [
+                            { c: "A", t: "歪" }, { c: "", t: "んだ顔がほら" },
+                            { c: "E", t: "バ" }, { c: "", t: "ラバラに" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "B", t: "崩" }, { c: "", t: "れ落ち　" },
+                            { c: "Cdim", t: "あ" }, { c: "", t: "たりに　" },
+                            { c: "C#m7", t: "飛" }, { c: "", t: "び散る血" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "A", t: "法" }, { c: "", t: "を犯さない" },
+                            { c: "E", t: "方" }, { c: "", t: "法で" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "Bsus4", t: "自" }, { c: "", t: "分を殺す方法があるなら" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "B", t: "僕" }, { c: "", t: "を今すぐ　" },
+                            { c: "D♭sus4", t: "殺" }, { c: "", t: "してみ　" },
+                            { c: "D♭", t: "た" }, { c: "", t: "い" }
+                        ]
+                    }
+                ]
+            },
+            {
+                title: "1サビ",
+                content: [
+                    {
+                        pairs: [
+                            { c: "D#m7", t: "誰" }, { c: "", t: "かが　" },
+                            { c: "D♭", t: "死" }, { c: "", t: "んでもね" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "B", t: "イ" }, { c: "", t: "ラつくく　" },
+                            { c: "G♭", t: "ら" }, { c: "", t: "いでした" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "B", t: "乱" }, { c: "", t: "れたダイヤに　" },
+                            { c: "G♭", t: "舌" }, { c: "", t: "打ちして" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "Adim", t: "溜" }, { c: "", t: "息を　" },
+                            { c: "A#", t: "つ" }, { c: "", t: "いた" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "D#m7", t: "貴" }, { c: "", t: "方が　" },
+                            { c: "D♭", t: "死" }, { c: "", t: "んだこと" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "B", t: "昨" }, { c: "", t: "日聞か　" },
+                            { c: "G♭", t: "さ" }, { c: "", t: "れました" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "B", t: "拳" }, { c: "", t: "に刺さるこ　" },
+                            { c: "G♭", t: "の" }, { c: "", t: "鏡じゃ" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "Adim", t: "痛" }, { c: "", t: "みも足　" },
+                            { c: "A#", t: "り" }, { c: "", t: "ない" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "B", t: "か" }, { c: "", t: "ごめ　" },
+                            { c: "", t: "か" }, { c: "", t: "ごめ" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "A♭m7", t: "後" }, { c: "", t: "ろの正面だあれ" }
+                        ]
+                    }
+                ]
+            },
+            {
+                title: "間奏",
+                content: [
+                    { chordsOnly: ["C#m7", "B", "A", "E", "B/D#"] },
+                    { chordsOnly: ["C#m7", "B", "A"] }
+                ]
+            },
+            {
+                title: "2Aメロ",
+                content: [
+                    {
+                        pairs: [
+                            { c: "C#m7", t: "血" }, { c: "", t: "も" }, { c: "B", t: "涙" }, { c: "", t: "も" },
+                            { c: "A", t: "流" }, { c: "", t: "れるの" }, { c: "E", t: "に" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "A", t: "心" }, { c: "", t: "のまま　" },
+                            { c: "E", t: "　" }, { c: "Gdim", t: "動" }, { c: "", t: "けない　" },
+                            { c: "G#", t: "い" }, { c: "", t: "のさ" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "C#m7", t: "壊" }, { c: "", t: "れる事に慣れた" },
+                            { c: "B", t: "か" }, { c: "A", t: "ら" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "A", t: "思" }, { c: "", t: "いのまま　" },
+                            { c: "E", t: "　" }, { c: "Gdim", t: "使" }, { c: "", t: "われる　" },
+                            { c: "G#", t: "る" }, { c: "", t: "のさ" }
+                        ]
+                    }
+                ]
+            },
+            {
+                title: "2Bメロ",
+                content: [
+                    {
+                        pairs: [
+                            { c: "A", t: "軋" }, { c: "", t: "んだ身体が叫" },
+                            { c: "E", t: "ぶ" }, { c: "", t: "声に" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "B", t: "耳" }, { c: "", t: "も　" },
+                            { c: "Cdim", t: "傾" }, { c: "", t: "けずに　" },
+                            { c: "C#m7", t: "に" }, { c: "", t: "べもなし" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "A", t: "愛" }, { c: "", t: "する人だけ守" },
+                            { c: "E", t: "れ" }, { c: "", t: "りゃ良い" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "Bsus4", t: "他" }, { c: "", t: "人を蹴落とせどこれが正義など" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "B", t: "な" }, { c: "", t: "んと小さき人でしょうか" }
+                        ]
+                    }
+                ]
+            },
+            {
+                title: "2サビ",
+                content: [
+                    {
+                        pairs: [
+                            { c: "Cm7", t: "貴" }, { c: "", t: "方が　" },
+                            { c: "A#", t: "死" }, { c: "", t: "んでもね" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "A♭", t: "悲" }, { c: "", t: "しむ　" },
+                            { c: "D#", t: "以" }, { c: "", t: "外なくて" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "A♭", t: "非" }, { c: "", t: "力を正当化　" },
+                            { c: "D#", t: "す" }, { c: "", t: "るだけの" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "F#dim", t: "脳" }, { c: "", t: "みそが　" },
+                            { c: "G", t: "恨" }, { c: "", t: "めしい" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "Cm7", t: "黄" }, { c: "", t: "色い　" },
+                            { c: "A#", t: "線" }, { c: "", t: "の外で" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "A♭", t: "懺" }, { c: "", t: "悔を繰　" },
+                            { c: "D#", t: "り" }, { c: "", t: "返した" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "A♭", t: "綺" }, { c: "", t: "麗なものを見　" },
+                            { c: "D#", t: "か" }, { c: "", t: "ける度" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "F#dim", t: "黒" }, { c: "", t: "く　" },
+                            { c: "G", t: "澱" }, { c: "", t: "んでく" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "A♭", t: "か" }, { c: "", t: "ごめ　" },
+                            { c: "", t: "か" }, { c: "", t: "ごめ" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "Fm7", t: "後" }, { c: "", t: "ろの正面だあれ" }
+                        ]
+                    }
+                ]
+            },
+            {
+                title: "Cメロ",
+                content: [
+                    {
+                        pairs: [
+                            { c: "Cm7", t: "幸" }, { c: "", t: "せってどんな顔で俺の事を　" },
+                            { c: "A#/D", t: "み" }, { c: "", t: "てるの" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "D#", t: "幸" }, { c: "", t: "せってどんな顔で俺の事を笑うの" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "A♭", t: "生" }, { c: "", t: "きるために必要な最小ってなんでしょう" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "A♭", t: "君" }, { c: "", t: "のために僕ができる　" },
+                            { c: "Bdim", t: "何" }, { c: "", t: "かってなんでしょう" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "Cm7", t: "愛" }, { c: "", t: "を持って生きろってどの面で　" },
+                            { c: "A#/D", t: "歌" }, { c: "", t: "うの" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "D#", t: "信" }, { c: "", t: "じられるものなんて積み上げてないから" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "A♭", t: "あ" }, { c: "", t: "れもこれも目に刺さって心流れる　" },
+                            { c: "A#", t: "ど" }, { c: "", t: "うせ" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "D#m7", t: "い" }, { c: "", t: "ら　" },
+                            { c: "D♭", t: "な" }, { c: "", t: "い" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "B", t: "い" }, { c: "", t: "ら　" },
+                            { c: "G♭", t: "な" }, { c: "", t: "い" }
+                        ]
+                    }
+                ]
+            },
+            {
+                title: "ラスサビ",
+                content: [
+                    {
+                        pairs: [
+                            { c: "B", t: "俺" }, { c: "", t: "が生きてるこ　" },
+                            { c: "G♭", t: "の" }, { c: "", t: "世界じゃ" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "Adim", t: "見" }, { c: "", t: "向きもさ　" },
+                            { c: "A#", t: "れ" }, { c: "", t: "ない" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "D#m7", t: "飛" }, { c: "", t: "び込ん　" },
+                            { c: "D♭", t: "だ" }, { c: "", t: "としても" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "B", t: "誰" }, { c: "", t: "も悲　" },
+                            { c: "G♭", t: "し" }, { c: "", t: "まぬなら" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "B", t: "俺" }, { c: "", t: "は俺らしく　" },
+                            { c: "G♭", t: "生" }, { c: "", t: "きてやろう" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "Adim", t: "泥" }, { c: "", t: "水のお　" },
+                            { c: "A#", t: "中" }, { c: "", t: "で" }
+                        ]
+                    },
+                    {
+                        pairs: [
+                            { c: "B", t: "高" }, { c: "", t: "く高く　" },
+                            { c: "D♭", t: "飛" }, { c: "", t: "べたらいいな" }
+                        ]
+                    }
+                ]
+            },
+            {
+                title: "後奏",
+                content: [
+                    { chordsOnly: ["D#m7", "G♭"] },
+                    { chordsOnly: ["B", "D♭", "D#m7"] },
+                    { chordsOnly: ["B", "D♭", "D#m7"] },
+                    { chordsOnly: ["B"] }
+                ]
+            }
+        ];
+
+        // 初期化ロード
+        function initData() {
+            try {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (saved) {
+                    activeScoreData = JSON.parse(saved);
+                } else {
+                    activeScoreData = JSON.parse(JSON.stringify(DEFAULT_SCORE_DATA));
+                }
+            } catch (e) {
+                console.error("Failed to load score data from localStorage:", e);
+                activeScoreData = JSON.parse(JSON.stringify(DEFAULT_SCORE_DATA));
+            }
+        }
+
+        // 音色プリセット変更
+        function changeSoundPreset(preset) {
+            currentPreset = preset;
+            const statusMap = {
+                'elepi': 'エレピ (透明感・ベル音)',
+                'nylon': 'ナイロン弦ギター (温かい)',
+                'ukulele': 'ウクレレ (コロコロ軽快)',
+                'organ': 'オルガン (重厚・持続音)',
+                'acoustic': 'アコースティックギター (リッチ)'
+            };
+            const presetStatus = document.getElementById('presetDisplayStatus');
+            if (presetStatus) presetStatus.innerText = statusMap[preset] || preset;
+        }
+
+        // Capoモード切替
+        function setCapoMode(mode) {
+            currentCapoMode = mode;
+            const btnOrig = document.getElementById('btnOriginalKey');
+            const btnCapo2 = document.getElementById('btnCapo2Key');
+            const status = document.getElementById('capoDisplayStatus');
+
+            if (mode === 'capo2') {
+                btnCapo2.className = "px-2.5 py-1 rounded-lg font-bold transition bg-amber-500 text-slate-950 shadow";
+                btnOrig.className = "px-2.5 py-1 rounded-lg font-bold text-slate-400 hover:text-slate-200 transition";
+                status.innerText = "Capo 2 (画像通り)";
+            } else {
+                btnOrig.className = "px-2.5 py-1 rounded-lg font-bold transition bg-amber-500 text-slate-950 shadow";
+                btnCapo2.className = "px-2.5 py-1 rounded-lg font-bold text-slate-400 hover:text-slate-200 transition";
+                status.innerText = "原曲実音 (Capo 0 相当: +2半音)";
+            }
+
+            renderScore();
+        }
+
+        function getDisplayChord(chord) {
+            if (!chord) return '';
+            if (currentCapoMode === 'original') {
+                return capo2ToOriginalMap[chord] || chord;
+            }
+            return chord;
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        // 楽譜の描画
+        function renderScore() {
+            const container = document.getElementById('scoreContainer');
+            if (!container) return;
+            container.innerHTML = '';
+
+            if (!Array.isArray(activeScoreData) || activeScoreData.length === 0) {
+                container.innerHTML = '<div class="text-center py-12 text-slate-500">楽譜データが存在しません。「楽譜編集」から追加してください。</div>';
+                return;
+            }
+
+            activeScoreData.forEach(sec => {
+                const secDiv = document.createElement('div');
+                secDiv.className = "space-y-3 pb-4 border-b border-slate-800/80 last:border-0";
+
+                const title = document.createElement('h3');
+                title.className = "text-xs font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-lg inline-block mb-1";
+                title.innerText = sec.title || "無題セクション";
+                secDiv.appendChild(title);
+
+                if (Array.isArray(sec.content)) {
+                    sec.content.forEach(line => {
+                        const lineDiv = document.createElement('div');
+                        lineDiv.className = "flex flex-wrap items-end my-1 p-1 rounded hover:bg-slate-850/40 transition";
+
+                        if (line.chordsOnly) {
+                            line.chordsOnly.forEach(chord => {
+                                const displayChord = getDisplayChord(chord);
+                                const chordSpan = document.createElement('span');
+                                chordSpan.className = "chord-mark text-amber-400 mr-6 text-sm hover:text-amber-300 cursor-pointer bg-slate-950 px-2.5 py-1 rounded border border-slate-800 shadow-sm active:scale-95 transition";
+                                chordSpan.innerText = displayChord || ' ';
+                                chordSpan.onclick = () => playSynthChordSound(chord);
+                                lineDiv.appendChild(chordSpan);
+                            });
+                        } else if (line.pairs) {
+                            line.pairs.forEach(pair => {
+                                const pairDiv = document.createElement('div');
+                                pairDiv.className = "chord-lyric-pair";
+                                const displayChord = getDisplayChord(pair.c);
+
+                                pairDiv.innerHTML = `
+                                    <span class="chord cursor-pointer hover:underline" onclick="playSynthChordSound('${pair.c || ''}')">${displayChord || ' '}</span>
+                                    <span class="lyric">${escapeHtml(pair.t || '')}</span>
+                                `;
+                                lineDiv.appendChild(pairDiv);
+                            });
+                        }
+
+                        secDiv.appendChild(lineDiv);
+                    });
+                }
+
+                container.appendChild(secDiv);
+            });
+        }
+
+        // Web Audio API による和音再生 (Dimコード補正ロジック含む)
+        function playSynthChordSound(originalChord) {
+            if (!originalChord) return;
+            
+            try {
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+
+                const now = audioCtx.currentTime;
+                let freqs = CHORD_FREQUENCIES[originalChord];
+
+                // 未知のコード名の場合の安全なフォールバック
+                if (!freqs || freqs.length === 0) {
+                    freqs = [138.59, 207.65, 277.18, 329.63]; // C#m7 相当のフォールバック
+                }
+
+                // Dim (ディミニッシュ) コード低音濁り防止の1オクターブ(+12)上周波数適用
+                const isDim = originalChord.toLowerCase().includes('dim');
+                const processedFreqs = freqs.map(f => isDim ? f * 1.5 : f);
+
+                if (currentPreset === 'elepi') {
+                    // エレピ
+                    processedFreqs.forEach((freq, index) => {
+                        const startTime = now + (index * 0.008);
+
+                        const oscMain = audioCtx.createOscillator();
+                        oscMain.type = 'sine';
+                        oscMain.frequency.setValueAtTime(freq, startTime);
+
+                        const oscBell = audioCtx.createOscillator();
+                        oscBell.type = 'sine';
+                        oscBell.frequency.setValueAtTime(freq * 3.98, startTime);
+
+                        const mainGain = audioCtx.createGain();
+                        mainGain.gain.setValueAtTime(0.0001, startTime);
+                        mainGain.gain.linearRampToValueAtTime(0.2, startTime + 0.005);
+                        mainGain.gain.exponentialRampToValueAtTime(0.0001, startTime + 2.2);
+
+                        const bellGain = audioCtx.createGain();
+                        bellGain.gain.setValueAtTime(0.0001, startTime);
+                        bellGain.gain.linearRampToValueAtTime(0.08, startTime + 0.002);
+                        bellGain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.3);
+
+                        oscMain.connect(mainGain);
+                        oscBell.connect(bellGain);
+                        mainGain.connect(audioCtx.destination);
+                        bellGain.connect(audioCtx.destination);
+
+                        oscMain.start(startTime);
+                        oscBell.start(startTime);
+                        oscMain.stop(startTime + 2.3);
+                        oscBell.stop(startTime + 0.35);
+                    });
+
+                } else if (currentPreset === 'nylon') {
+                    // ナイロン弦ギター
+                    processedFreqs.forEach((f, i) => {
+                        const startTime = now + i * 0.03;
+
+                        const osc = audioCtx.createOscillator();
+                        const gain = audioCtx.createGain();
+                        const filter = audioCtx.createBiquadFilter();
+
+                        osc.type = (i % 2 === 0) ? 'triangle' : 'sine';
+                        osc.frequency.setValueAtTime(f, startTime);
+
+                        filter.type = 'lowpass';
+                        filter.frequency.setValueAtTime(850, startTime);
+
+                        gain.gain.setValueAtTime(0.001, startTime);
+                        gain.gain.exponentialRampToValueAtTime(0.18, startTime + 0.012);
+                        gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 1.5);
+
+                        osc.connect(filter);
+                        filter.connect(gain);
+                        gain.connect(audioCtx.destination);
+
+                        osc.start(startTime);
+                        osc.stop(startTime + 1.55);
+                    });
+
+                } else if (currentPreset === 'ukulele') {
+                    // ウクレレ
+                    processedFreqs.forEach((freq, index) => {
+                        const startTime = now + (index * 0.012);
+
+                        const osc = audioCtx.createOscillator();
+                        osc.type = 'triangle';
+                        osc.frequency.setValueAtTime(freq * 1.4, startTime);
+
+                        const gain = audioCtx.createGain();
+                        gain.gain.setValueAtTime(0.0001, startTime);
+                        gain.gain.linearRampToValueAtTime(0.2, startTime + 0.005);
+                        gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.9);
+
+                        osc.connect(gain);
+                        gain.connect(audioCtx.destination);
+
+                        osc.start(startTime);
+                        osc.stop(startTime + 0.95);
+                    });
+
+                } else if (currentPreset === 'organ') {
+                    // オルガン
+                    processedFreqs.forEach((freq) => {
+                        [1, 2].forEach((harmonic, hIdx) => {
+                            const osc = audioCtx.createOscillator();
+                            osc.type = 'sine';
+                            osc.frequency.setValueAtTime(freq * harmonic, now);
+
+                            const gain = audioCtx.createGain();
+                            const vol = 0.1 / (hIdx + 1);
+                            gain.gain.setValueAtTime(0.0001, now);
+                            gain.gain.linearRampToValueAtTime(vol, now + 0.04);
+                            gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.6);
+
+                            osc.connect(gain);
+                            gain.connect(audioCtx.destination);
+
+                            osc.start(now);
+                            osc.stop(now + 1.65);
+                        });
+                    });
+
+                } else {
+                    // アコースティックギター (リッチ)
+                    processedFreqs.forEach((freq, index) => {
+                        const startTime = now + (index * 0.02);
+
+                        const oscSaw = audioCtx.createOscillator();
+                        oscSaw.type = 'sawtooth';
+                        oscSaw.frequency.setValueAtTime(freq, startTime);
+
+                        const oscTri = audioCtx.createOscillator();
+                        oscTri.type = 'triangle';
+                        oscTri.frequency.setValueAtTime(freq, startTime);
+
+                        const filter = audioCtx.createBiquadFilter();
+                        filter.type = 'lowpass';
+                        filter.frequency.setValueAtTime(1200, startTime);
+
+                        const gain = audioCtx.createGain();
+                        gain.gain.setValueAtTime(0.0001, startTime);
+                        gain.gain.linearRampToValueAtTime(0.16, startTime + 0.008);
+                        gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 1.7);
+
+                        oscSaw.connect(filter);
+                        oscTri.connect(filter);
+                        filter.connect(gain);
+                        gain.connect(audioCtx.destination);
+
+                        oscSaw.start(startTime);
+                        oscTri.start(startTime);
+                        oscSaw.stop(startTime + 1.75);
+                        oscTri.stop(startTime + 1.75);
+                    });
+                }
+            } catch (err) {
+                console.error("Audio playback error:", err);
+            }
+        }
+
+        // モーダル操作 & データ保存
+        function openEditorModal() {
+            const textarea = document.getElementById('editorJsonInput');
+            if (textarea) {
+                textarea.value = JSON.stringify(activeScoreData, null, 2);
+            }
+            const modal = document.getElementById('editorModal');
+            if (modal) modal.classList.remove('hidden');
+        }
+
+        function closeEditorModal() {
+            const modal = document.getElementById('editorModal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function saveEditorData() {
+            const textarea = document.getElementById('editorJsonInput');
+            if (!textarea) return;
+
+            try {
+                const parsed = JSON.parse(textarea.value);
+                if (!Array.isArray(parsed)) {
+                    showToast("配列形式のJSONを入力してください", "error");
+                    return;
+                }
+                activeScoreData = parsed;
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(activeScoreData));
+                renderScore();
+                closeEditorModal();
+                showToast("楽譜データを保存・反映しました", "success");
+            } catch (e) {
+                console.error("JSON Syntax Error:", e);
+                showToast("JSONの構文エラーです。内容を確認してください", "error");
+            }
+        }
+
+        function resetToDefaultData() {
+            try {
+                activeScoreData = JSON.parse(JSON.stringify(DEFAULT_SCORE_DATA));
+                localStorage.removeItem(STORAGE_KEY);
+                renderScore();
+                showToast("初期データにリセットしました", "success");
+            } catch (e) {
+                console.error("Reset error:", e);
+            }
+        }
+
+        // トースト表示関数 (alert不使用)
+        function showToast(msg, type = "success") {
+            const toast = document.getElementById('toastNotification');
+            const toastMsg = document.getElementById('toastMessage');
+            const toastIcon = document.getElementById('toastIcon');
+            if (!toast || !toastMsg || !toastIcon) return;
+
+            toastMsg.innerText = msg;
+            if (type === "error") {
+                toastIcon.className = "fa-solid fa-circle-exclamation text-rose-400 text-base";
+            } else {
+                toastIcon.className = "fa-solid fa-circle-check text-emerald-400 text-base";
+            }
+
+            toast.classList.remove('translate-y-16', 'opacity-0', 'pointer-events-none');
+            setTimeout(() => {
+                toast.classList.add('translate-y-16', 'opacity-0', 'pointer-events-none');
+            }, 3000);
+        }
+
+        // アプリ起動
+        window.onload = function() {
+            initData();
+            renderScore();
+        };
+    </script>
+</body>
+</html>
