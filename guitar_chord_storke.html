@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="ja" class="h-full bg-slate-950">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ギター練習ツール(コードチェンジ・ストローク)</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=Inter:wght@400;600;800;900&display=swap');
+        
+        .font-mono-num {
+            font-family: 'Chakra Petch', sans-serif;
+        }
+
+        /* 脈動・発光アニメーション */
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 25px rgba(52, 211, 153, 0.25); }
+            50% { box-shadow: 0 0 50px rgba(52, 211, 153, 0.6); }
+        }
+
+        .active-chord-card {
+            animation: pulse-glow 2s infinite ease-in-out;
+        }
+
+        /* ビートランプの発光効果 */
+        .beat-active {
+            box-shadow: 0 0 15px #38bdf8, 0 0 30px #38bdf8;
+            background-color: #38bdf8 !important;
+            border-color: #e0f2fe !important;
+        }
+
+        .beat-first-active {
+            box-shadow: 0 0 20px #f43f5e, 0 0 35px #f43f5e;
+            background-color: #f43f5e !important;
+            border-color: #ffe4e6 !important;
+        }
+
+        /* カスタムスライダー */
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 24px;
+            width: 24px;
+            border-radius: 50%;
+            background: #38bdf8;
+            cursor: pointer;
+            box-shadow: 0 0 10px #38bdf8;
+        }
+    </style>
+</head>
+<body class="h-full text-slate-100 font-sans flex flex-col justify-between overflow-x-hidden antialiased select-none">
+
+    <!-- ヘッダーエリア -->
+    <header class="w-full bg-slate-900/80 backdrop-blur border-b border-slate-800 p-4 sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/50 flex items-center justify-center text-emerald-400">
+                    <i class="fa-solid fa-guitar text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg md:text-xl font-bold tracking-wide text-white">GUITAR STROKE & CHORD TRAINER</h1>
+                    <p class="text-xs text-slate-400 hidden sm:block">画面が見やすいインタラクティブ練習タイマー</p>
+                </div>
+            </div>
+
+            <!-- 音声＆状態ステータス -->
+            <div class="flex items-center gap-3">
+                <button id="audioToggleBtn" class="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-sm font-medium transition text-emerald-400">
+                    <i id="audioIcon" class="fa-solid fa-volume-high"></i>
+                    <span id="audioStatusText" class="hidden sm:inline">サウンド ON</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- メイン表示エリア (高視認性ディスプレイ) -->
+    <main class="flex-1 max-w-6xl w-full mx-auto p-4 md:p-6 flex flex-col gap-6 justify-center">
+
+        <!-- ステータスバー（小層・拍子ランプ） -->
+        <div class="bg-slate-900/90 rounded-2xl p-4 border border-slate-800 flex flex-col md:flex-row justify-between items-center gap-4">
+            <!-- 小節カウント -->
+            <div class="flex items-center gap-4">
+                <div class="text-xs text-slate-400 uppercase tracking-widest font-semibold">MEASURE</div>
+                <div id="measureDisplay" class="font-mono-num text-3xl font-extrabold text-slate-100 min-w-[3rem]">001</div>
+            </div>
+
+            <!-- 拍インジケーター (1, 2, 3, 4拍目) -->
+            <div class="flex items-center gap-3 md:gap-4" id="beatLampsContainer">
+                <!-- JSで動的に生成 -->
+            </div>
+
+            <!-- チェンジカウントダウン -->
+            <div class="flex items-center gap-2 text-slate-400 text-sm font-mono-num">
+                <span>CHANGE IN:</span>
+                <span id="beatsUntilChange" class="text-amber-400 text-xl font-bold">4</span>
+                <span>BEATS</span>
+            </div>
+        </div>
+
+        <!-- コードメイン表示エリア (超巨大表示) -->
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 items-stretch">
+            
+            <!-- メイン：現在のコード (3カラム分) -->
+            <div class="lg:col-span-3 bg-gradient-to-b from-slate-900 to-slate-950 border-2 border-emerald-500/40 rounded-3xl p-6 md:p-10 flex flex-col justify-between items-center relative overflow-hidden active-chord-card min-h-[260px] md:min-h-[340px]">
+                <!-- 背景アクセント光芒 -->
+                <div class="absolute -top-24 -left-24 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+                <div class="absolute -bottom-24 -right-24 w-64 h-64 bg-sky-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+                <div class="w-full flex justify-between items-center text-xs md:text-sm font-bold tracking-widest text-emerald-400 uppercase">
+                    <span><i class="fa-solid fa-play text-xs mr-2"></i>CURRENT CHORD</span>
+                    <span id="chordIndexDisplay" class="text-slate-500 font-mono-num">1 / 4</span>
+                </div>
+
+                <!-- 超巨大コード文字 -->
+                <div id="currentChord" class="font-mono-num text-7xl sm:text-8xl md:text-9xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 via-teal-200 to-cyan-400 my-auto py-2 drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)] tracking-tight">
+                    C
+                </div>
+
+                <div class="w-full text-center text-xs text-slate-500 font-medium">
+                    離れた場所からも見えやすい高視認デザイン
+                </div>
+            </div>
+
+            <!-- サブ：次のコード (1カラム分) -->
+            <div class="lg:col-span-1 bg-slate-900/90 border border-slate-800 rounded-3xl p-6 flex flex-col justify-between items-center min-h-[180px] lg:min-h-auto relative">
+                <div class="w-full text-xs font-bold tracking-widest text-amber-400 uppercase flex items-center justify-between">
+                    <span>NEXT CHORD</span>
+                    <i class="fa-solid fa-forward-step text-amber-400/60"></i>
+                </div>
+
+                <div id="nextChord" class="font-mono-num text-5xl md:text-6xl font-extrabold text-amber-300 my-auto">
+                    Am
+                </div>
+
+                <div class="text-xs text-slate-400 text-center font-medium">
+                    間もなく進行
+                </div>
+            </div>
+        </div>
+
+        <!-- ストロークパターン視覚ビート表示バー -->
+        <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 md:p-5 flex flex-col gap-3">
+            <div class="flex justify-between items-center flex-wrap gap-2">
+                <span class="text-xs font-bold text-sky-400 tracking-wider uppercase"><i class="fa-solid fa-wave-square mr-2"></i>STROKE PATTERN (ビート視覚化)</span>
+                <!-- 8 BEAT / 16 BEAT ダイレクト切替ボタン -->
+                <div class="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800/80">
+                    <button id="headerBeatMode8" class="beat-mode-btn px-3 py-1 rounded-lg text-xs font-bold transition bg-sky-600 text-white shadow-sm">8 BEAT</button>
+                    <button id="headerBeatMode16" class="beat-mode-btn px-3 py-1 rounded-lg text-xs font-bold transition text-slate-400 hover:text-slate-200">16 BEAT</button>
+                </div>
+            </div>
+
+            <!-- サブビートグリッド（再生に合わせてリアルタイム移動） -->
+            <div id="strokeVisualizer" class="grid grid-cols-8 gap-1.5 md:gap-3 w-full">
+                <!-- JSで動的にビートボタン（↓↑・）を生成 -->
+            </div>
+        </div>
+
+    </main>
+
+    <!-- ボトム設定＆コントロールパネル -->
+    <footer class="w-full bg-slate-900 border-t border-slate-800 p-4 md:p-6">
+        <div class="max-w-6xl mx-auto flex flex-col gap-6">
+
+            <!-- コントロールボタン群 (スタート・ストップ・リセット) -->
+            <div class="flex flex-wrap items-center justify-center gap-4">
+                <button id="startStopBtn" class="flex-1 sm:flex-initial min-w-[200px] py-4 px-8 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-xl shadow-lg shadow-emerald-500/20 transition transform active:scale-95 flex items-center justify-center gap-3">
+                    <i class="fa-solid fa-play text-2xl"></i>
+                    <span>START</span>
+                </button>
+
+                <button id="resetBtn" class="py-4 px-6 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-base transition transform active:scale-95 flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-rotate-left"></i>
+                    <span>RESET</span>
+                </button>
+            </div>
+
+            <!-- コントロール設定グリッド -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2 border-t border-slate-800/80">
+                
+                <!-- 1. BPM・テンポ調整 -->
+                <div class="flex flex-col gap-3 bg-slate-950/60 p-4 rounded-xl border border-slate-800/60">
+                    <div class="flex justify-between items-center">
+                        <label class="text-xs font-bold text-slate-300 uppercase tracking-wider">TEMPO (BPM)</label>
+                        <span id="bpmValue" class="font-mono-num text-2xl font-black text-sky-400">120</span>
+                    </div>
+
+                    <input type="range" id="bpmSlider" min="40" max="240" value="120" class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer">
+
+                    <!-- BPM微調整ボタン (+1, -1, +5, -5) -->
+                    <div class="grid grid-cols-4 gap-2">
+                        <button class="bpm-adj-btn py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition" data-change="-5">-5</button>
+                        <button class="bpm-adj-btn py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition" data-change="-1">-1</button>
+                        <button class="bpm-adj-btn py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition" data-change="+1">+1</button>
+                        <button class="bpm-adj-btn py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition" data-change="+5">+5</button>
+                    </div>
+                </div>
+
+                <!-- 2. コード進行 & タイミング設定 -->
+                <div class="flex flex-col gap-3 bg-slate-950/60 p-4 rounded-xl border border-slate-800/60">
+                    <div>
+                        <label class="text-xs font-bold text-slate-300 uppercase tracking-wider block mb-1.5">CHORD PROGRESSION</label>
+                        <input type="text" id="chordInput" value="C, Am, F, G" placeholder="C, Am, F, G (カンマ・スペース区切り)" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-emerald-400 font-mono-num font-bold focus:outline-none focus:border-emerald-500 transition">
+                    </div>
+
+                    <div>
+                        <label class="text-xs font-bold text-slate-300 uppercase tracking-wider block mb-1.5">CHANGE TIMING</label>
+                        <select id="changeIntervalSelect" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-200 text-sm font-medium focus:outline-none focus:border-emerald-500 transition">
+                            <option value="1beat">1拍ごと</option>
+                            <option value="1measure" selected>1小節ごと (4拍)</option>
+                            <option value="2measures">2小節ごと (8拍)</option>
+                            <option value="4measures">4小節ごと (16拍)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- 3. ストローク・ビートモード設定 -->
+                <div class="flex flex-col gap-3 bg-slate-950/60 p-4 rounded-xl border border-slate-800/60">
+                    <label class="text-xs font-bold text-slate-300 uppercase tracking-wider">STROKE MODE & CUSTOM</label>
+                    
+                    <div class="grid grid-cols-2 gap-2">
+                        <button id="beatMode8" class="beat-mode-btn py-2 px-3 rounded-lg bg-sky-600 text-white font-bold text-xs transition">8 BEAT</button>
+                        <button id="beatMode16" class="beat-mode-btn py-2 px-3 rounded-lg bg-slate-800 text-slate-400 hover:bg-slate-700 font-bold text-xs transition">16 BEAT</button>
+                    </div>
+
+                    <p class="text-[11px] text-slate-400 mt-1">
+                        ※ビート箇所のボタンをクリックして<br>
+                        「<span class="text-emerald-400 font-bold">↓ (Down)</span>」「<span class="text-sky-400 font-bold">↑ (Up)</span>」「<span class="text-slate-500 font-bold">・ (Mute)</span>」をカスタマイズ可
+                    </p>
+                </div>
+
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        /* ギター練習タイマー コアスクリプト */
+
+        // State Management
+        const state = {
+            isPlaying: false,
+            audioEnabled: true,
+            bpm: 120,
+            chords: ['C', 'Am', 'F', 'G'],
+            currentChordIndex: 0,
+            changeInterval: '1measure', // '1beat', '1measure', '2measures', '4measures'
+            beatMode: 8, // 8 or 16
+            strokes: ['↓', '・', '↓', '↑', '・', '↑', '↓', '↑'], // Default 8-beat pattern
+            strokes16: ['↓', '・', '↓', '・', '↓', '・', '↓', '↑', '・', '↑', '↓', '・', '↓', '・', '↓', '↑'],
+            
+            // Timing trackers
+            currentSubBeat: 0, // 8ビートなら 0~7, 16ビートなら 0~15
+            totalBeatsPassed: 0, // 累計の本拍数
+            measureCount: 1,
+            
+            // Audio Web Context
+            audioCtx: null,
+            nextNoteTime: 0.0,
+            timerID: null,
+            scheduleAheadTime: 0.1, // 100ms 先までスケジュール
+            lookahead: 25 // 25ms 間隔でチェック
+        };
+
+        // DOM Elements
+        const startStopBtn = document.getElementById('startStopBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const audioToggleBtn = document.getElementById('audioToggleBtn');
+        const audioIcon = document.getElementById('audioIcon');
+        const audioStatusText = document.getElementById('audioStatusText');
+        const bpmSlider = document.getElementById('bpmSlider');
+        const bpmValue = document.getElementById('bpmValue');
+        const chordInput = document.getElementById('chordInput');
+        const changeIntervalSelect = document.getElementById('changeIntervalSelect');
+        const currentChordEl = document.getElementById('currentChord');
+        const nextChordEl = document.getElementById('nextChord');
+        const chordIndexDisplay = document.getElementById('chordIndexDisplay');
+        const measureDisplay = document.getElementById('measureDisplay');
+        const beatsUntilChangeEl = document.getElementById('beatsUntilChange');
+        const strokeVisualizer = document.getElementById('strokeVisualizer');
+        const beatLampsContainer = document.getElementById('beatLampsContainer');
+        const beatMode8Btn = document.getElementById('beatMode8');
+        const beatMode16Btn = document.getElementById('beatMode16');
+        const headerBeatMode8Btn = document.getElementById('headerBeatMode8');
+        const headerBeatMode16Btn = document.getElementById('headerBeatMode16');
+
+        // Web Audio API 発振器（メトロノーム音生成）
+        function initAudioContext() {
+            if (!state.audioCtx) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                state.audioCtx = new AudioContext();
+            }
+            if (state.audioCtx.state === 'suspended') {
+                state.audioCtx.resume();
+            }
+        }
+
+        // ピッ・ポッ クリック音発生関数
+        function playClick(time, isFirstBeat) {
+            if (!state.audioEnabled || !state.audioCtx) return;
+
+            const osc = state.audioCtx.createOscillator();
+            const gain = state.audioCtx.createGain();
+
+            osc.type = 'sine';
+            
+            // 1拍目は高音(880Hz)、それ以外は低音(440Hz)
+            if (isFirstBeat) {
+                osc.frequency.setValueAtTime(880, time);
+                gain.gain.setValueAtTime(0.3, time);
+                gain.gain.exponentialRampToValueAtTime(0.001, time + 0.08);
+            } else {
+                osc.frequency.setValueAtTime(440, time);
+                gain.gain.setValueAtTime(0.2, time);
+                gain.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
+            }
+
+            osc.connect(gain);
+            gain.connect(state.audioCtx.destination);
+
+            osc.start(time);
+            osc.stop(time + 0.09);
+        }
+
+        // ルックアヘッド・スケジューラー
+        function scheduler() {
+            // 次のノート時間が現在の時間 + 先読み範囲内にある間ループ
+            while (state.nextNoteTime < state.audioCtx.currentTime + state.scheduleAheadTime) {
+                scheduleNote(state.currentSubBeat, state.nextNoteTime);
+                nextSubBeat();
+            }
+            state.timerID = setTimeout(scheduler, state.lookahead);
+        }
+
+        // 次のサブビートまでの時間を進める計算
+        function nextSubBeat() {
+            // 60秒 / BPM = 1拍（四分音符）の長さ
+            const secondsPerBeat = 60.0 / state.bpm;
+            // 8ビートなら1拍を2分割（8分音符）、16ビートなら1拍を4分割（16分音符）
+            const subBeatsPerBeat = state.beatMode === 8 ? 2 : 4;
+            const secondsPerSubBeat = secondsPerBeat / subBeatsPerBeat;
+
+            state.nextNoteTime += secondsPerSubBeat;
+
+            // 1小節内の総サブビート数（8ビート: 8, 16ビート: 16）
+            const totalSubBeatsInMeasure = state.beatMode === 8 ? 8 : 16;
+            state.currentSubBeat = (state.currentSubBeat + 1) % totalSubBeatsInMeasure;
+        }
+
+        // ノートのスケジュール設定 & UI反映イベントの発火
+        function scheduleNote(subBeatIndex, time) {
+            const subBeatsPerBeat = state.beatMode === 8 ? 2 : 4;
+            
+            // 本拍（1, 2, 3, 4拍目の頭）の判定：8ビートなら0,2,4,6音目 / 16ビートなら0,4,8,12(1,5,9,13)音目
+            const isMainBeat = (subBeatIndex % subBeatsPerBeat) === 0;
+            // 小節の頭（1拍目）の判定：常にサブビート0番目
+            const isFirstBeatOfMeasure = (subBeatIndex === 0);
+
+            // 本拍でのみメトロノーム音を鳴らす（1拍目は高音「ピッ」、それ以外は低音「ポッ」）
+            if (isMainBeat) {
+                playClick(time, isFirstBeatOfMeasure);
+            }
+
+            // UI更新はWeb Audioの時間に合わせてsetTimeoutで正確に遅延実行
+            const timeUntilNote = Math.max(0, (time - state.audioCtx.currentTime) * 1000);
+            setTimeout(() => {
+                updateUIOnBeat(subBeatIndex, isMainBeat);
+            }, timeUntilNote);
+        }
+
+        // ビートごとのUI更新（メインロジック）
+        function updateUIOnBeat(subBeatIndex, isMainBeat) {
+            if (!state.isPlaying) return;
+
+            // 1. ストロークグリッドのハイライト更新
+            const strokeGridButtons = strokeVisualizer.children;
+            for (let i = 0; i < strokeGridButtons.length; i++) {
+                if (i === subBeatIndex) {
+                    strokeGridButtons[i].classList.add('ring-2', 'ring-sky-400', 'scale-105', 'bg-sky-950');
+                } else {
+                    strokeGridButtons[i].classList.remove('ring-2', 'ring-sky-400', 'scale-105', 'bg-sky-950');
+                }
+            }
+
+            // 本拍（拍の頭）のときの処理
+            if (isMainBeat) {
+                const subBeatsPerBeat = state.beatMode === 8 ? 2 : 4;
+                const beatInMeasure = Math.floor(subBeatIndex / subBeatsPerBeat); // 0, 1, 2, 3 (1, 2, 3, 4拍目)
+                
+                // 2. 拍子ランプの更新
+                updateBeatLamps(beatInMeasure);
+
+                // 小節の頭（1拍目）の処理
+                if (beatInMeasure === 0 && subBeatIndex === 0) {
+                    // 最初以外の1拍目で小節カウントを進める
+                    if (state.totalBeatsPassed > 0) {
+                        state.measureCount++;
+                        measureDisplay.textContent = String(state.measureCount).padStart(3, '0');
+                    }
+                }
+
+                // 3. コード切り替え計算
+                checkAndAdvanceChord();
+
+                state.totalBeatsPassed++;
+            }
+        }
+
+        // コード進行のチェックと変更処理
+        function checkAndAdvanceChord() {
+            const beatsPerMeasure = 4;
+            let beatsPerInterval = 4; // default 1measure = 4beats
+
+            switch (state.changeInterval) {
+                case '1beat':
+                    beatsPerInterval = 1;
+                    break;
+                case '1measure':
+                    beatsPerInterval = 4;
+                    break;
+                case '2measures':
+                    beatsPerInterval = 8;
+                    break;
+                case '4measures':
+                    beatsPerInterval = 16;
+                    break;
+            }
+
+            // チェンジまでの残り拍数
+            const beatsRemaining = beatsPerInterval - (state.totalBeatsPassed % beatsPerInterval);
+            beatsUntilChangeEl.textContent = beatsRemaining;
+
+            // 現在のコードインデックス計算
+            const chordIndex = Math.floor(state.totalBeatsPassed / beatsPerInterval) % state.chords.length;
+            
+            if (chordIndex !== state.currentChordIndex || state.totalBeatsPassed === 0) {
+                state.currentChordIndex = chordIndex;
+                renderChordDisplay();
+            }
+        }
+
+        // コード表示の更新
+        function renderChordDisplay() {
+            if (state.chords.length === 0) return;
+
+            const curr = state.chords[state.currentChordIndex] || 'C';
+            const nextIdx = (state.currentChordIndex + 1) % state.chords.length;
+            const next = state.chords[nextIdx] || 'C';
+
+            currentChordEl.textContent = curr;
+            nextChordEl.textContent = next;
+            chordIndexDisplay.textContent = `${state.currentChordIndex + 1} / ${state.chords.length}`;
+        }
+
+        // 1,2,3,4拍目のインジケーターランプ表示更新
+        function updateBeatLamps(activeBeatIndex) {
+            const lamps = beatLampsContainer.children;
+            for (let i = 0; i < lamps.length; i++) {
+                lamps[i].className = "w-7 h-7 sm:w-9 sm:h-9 rounded-full border-2 border-slate-700 bg-slate-800 flex items-center justify-center font-mono-num text-xs sm:text-sm font-bold transition-all duration-100";
+                
+                if (i === activeBeatIndex) {
+                    if (i === 0) {
+                        lamps[i].classList.add('beat-first-active', 'text-white');
+                    } else {
+                        lamps[i].classList.add('beat-active', 'text-slate-950');
+                    }
+                } else {
+                    lamps[i].classList.add('text-slate-500');
+                }
+            }
+        }
+
+        // 拍子ランプの初期描画
+        function initBeatLamps() {
+            beatLampsContainer.innerHTML = '';
+            for (let i = 1; i <= 4; i++) {
+                const lamp = document.createElement('div');
+                lamp.className = "w-7 h-7 sm:w-9 sm:h-9 rounded-full border-2 border-slate-700 bg-slate-800 flex items-center justify-center font-mono-num text-xs sm:text-sm font-bold text-slate-500";
+                lamp.textContent = i;
+                beatLampsContainer.appendChild(lamp);
+            }
+        }
+
+        // ストロークパターンVisualizerの描画
+        function renderStrokeVisualizer() {
+            strokeVisualizer.innerHTML = '';
+            const activeStrokes = state.beatMode === 8 ? state.strokes : state.strokes16;
+            
+            if (state.beatMode === 8) {
+                strokeVisualizer.className = 'grid grid-cols-8 gap-1.5 md:gap-2 w-full';
+            } else {
+                // 16ビート: スマホ等狭い画面では8列×2行、PC等広い画面(md)では16列1行
+                strokeVisualizer.className = 'grid grid-cols-8 md:grid-cols-[repeat(16,minmax(0,1fr))] gap-1 md:gap-1.5 w-full text-xs';
+            }
+
+            activeStrokes.forEach((stroke, idx) => {
+                const btn = document.createElement('button');
+                const pPadding = state.beatMode === 8 ? 'p-2 md:p-3' : 'p-1.5 md:p-2';
+                btn.className = `flex flex-col items-center justify-center ${pPadding} rounded-xl bg-slate-800/80 border border-slate-700/80 hover:bg-slate-700 transition font-bold min-w-0`;
+                
+                let textColor = 'text-slate-400';
+                if (stroke === '↓') textColor = 'text-emerald-400';
+                if (stroke === '↑') textColor = 'text-sky-400';
+
+                const strokeSize = state.beatMode === 8 ? 'text-base sm:text-lg' : 'text-sm sm:text-base';
+
+                btn.innerHTML = `
+                    <span class="text-[10px] sm:text-xs text-slate-500 font-mono-num mb-0.5 truncate w-full text-center">${idx + 1}</span>
+                    <span class="${strokeSize} ${textColor}">${stroke}</span>
+                `;
+
+                // クリックでストロークパターンを切り替え (↓ -> ↑ -> ・ -> ↓)
+                btn.addEventListener('click', () => {
+                    const cycle = ['↓', '↑', '・'];
+                    const nextStrokeIndex = (cycle.indexOf(stroke) + 1) % cycle.length;
+                    const newStroke = cycle[nextStrokeIndex];
+
+                    if (state.beatMode === 8) {
+                        state.strokes[idx] = newStroke;
+                    } else {
+                        state.strokes16[idx] = newStroke;
+                    }
+                    renderStrokeVisualizer();
+                });
+
+                strokeVisualizer.appendChild(btn);
+            });
+        }
+
+        // パケットデータの解析（カンマやスペース区切り）
+        function parseChords(input) {
+            return input
+                .split(/[\s,]+/)
+                .map(c => c.trim())
+                .filter(c => c.length > 0);
+        }
+
+        // 再生・停止切り替え
+        function togglePlay() {
+            initAudioContext();
+
+            state.isPlaying = !state.isPlaying;
+
+            if (state.isPlaying) {
+                // 開始
+                startStopBtn.innerHTML = `<i class="fa-solid fa-pause text-2xl"></i><span>STOP</span>`;
+                startStopBtn.className = "flex-1 sm:flex-initial min-w-[200px] py-4 px-8 rounded-2xl bg-gradient-to-r from-rose-500 to-amber-600 hover:from-rose-400 hover:to-amber-500 text-slate-950 font-black text-xl shadow-lg shadow-rose-500/20 transition transform active:scale-95 flex items-center justify-center gap-3";
+
+                state.currentSubBeat = 0;
+                state.nextNoteTime = state.audioCtx.currentTime + 0.05;
+                scheduler();
+            } else {
+                // 停止
+                startStopBtn.innerHTML = `<i class="fa-solid fa-play text-2xl"></i><span>START</span>`;
+                startStopBtn.className = "flex-1 sm:flex-initial min-w-[200px] py-4 px-8 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-xl shadow-lg shadow-emerald-500/20 transition transform active:scale-95 flex items-center justify-center gap-3";
+
+                clearTimeout(state.timerID);
+            }
+        }
+
+        // 完全リセット
+        function resetAll() {
+            if (state.isPlaying) {
+                togglePlay();
+            }
+            state.currentSubBeat = 0;
+            state.totalBeatsPassed = 0;
+            state.measureCount = 1;
+            state.currentChordIndex = 0;
+
+            measureDisplay.textContent = '001';
+            beatsUntilChangeEl.textContent = '4';
+            initBeatLamps();
+            renderChordDisplay();
+            renderStrokeVisualizer();
+        }
+
+        // イベントリスナー設定
+        function setupEventListeners() {
+            startStopBtn.addEventListener('click', togglePlay);
+            resetBtn.addEventListener('click', resetAll);
+
+            // 音声トグル
+            audioToggleBtn.addEventListener('click', () => {
+                state.audioEnabled = !state.audioEnabled;
+                if (state.audioEnabled) {
+                    audioIcon.className = "fa-solid fa-volume-high";
+                    audioStatusText.textContent = "サウンド ON";
+                    audioToggleBtn.classList.remove('text-slate-500');
+                    audioToggleBtn.classList.add('text-emerald-400');
+                } else {
+                    audioIcon.className = "fa-solid fa-volume-xmark";
+                    audioStatusText.textContent = "ミュート";
+                    audioToggleBtn.classList.remove('text-emerald-400');
+                    audioToggleBtn.classList.add('text-slate-500');
+                }
+            });
+
+            // BPM スライダー & ボタン
+            bpmSlider.addEventListener('input', (e) => {
+                state.bpm = parseInt(e.target.value);
+                bpmValue.textContent = state.bpm;
+            });
+
+            document.querySelectorAll('.bpm-adj-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const diff = parseInt(btn.getAttribute('data-change'));
+                    state.bpm = Math.min(240, Math.max(40, state.bpm + diff));
+                    bpmSlider.value = state.bpm;
+                    bpmValue.textContent = state.bpm;
+                });
+            });
+
+            // コード入力
+            chordInput.addEventListener('input', (e) => {
+                const parsed = parseChords(e.target.value);
+                if (parsed.length > 0) {
+                    state.chords = parsed;
+                    state.currentChordIndex = 0;
+                    renderChordDisplay();
+                }
+            });
+
+            // チェンジタイミング変更
+            changeIntervalSelect.addEventListener('change', (e) => {
+                state.changeInterval = e.target.value;
+                checkAndAdvanceChord();
+            });
+
+            // ビートモード（8 / 16）切替関数
+            function setBeatMode(mode) {
+                state.beatMode = mode;
+                state.currentSubBeat = 0; // モード切替時にカウント位置をリセット
+                const activeStyle = "beat-mode-btn px-3 py-1 rounded-lg text-xs font-bold transition bg-sky-600 text-white shadow-sm";
+                const inactiveStyle = "beat-mode-btn px-3 py-1 rounded-lg text-xs font-bold transition text-slate-400 hover:text-slate-200";
+
+                if (mode === 8) {
+                    headerBeatMode8Btn.className = activeStyle;
+                    headerBeatMode16Btn.className = inactiveStyle;
+                    if (beatMode8Btn) beatMode8Btn.className = "beat-mode-btn py-2 px-3 rounded-lg bg-sky-600 text-white font-bold text-xs transition";
+                    if (beatMode16Btn) beatMode16Btn.className = "beat-mode-btn py-2 px-3 rounded-lg bg-slate-800 text-slate-400 hover:bg-slate-700 font-bold text-xs transition";
+                } else {
+                    headerBeatMode8Btn.className = inactiveStyle;
+                    headerBeatMode16Btn.className = activeStyle;
+                    if (beatMode8Btn) beatMode8Btn.className = "beat-mode-btn py-2 px-3 rounded-lg bg-slate-800 text-slate-400 hover:bg-slate-700 font-bold text-xs transition";
+                    if (beatMode16Btn) beatMode16Btn.className = "beat-mode-btn py-2 px-3 rounded-lg bg-sky-600 text-white font-bold text-xs transition";
+                }
+                renderStrokeVisualizer();
+            }
+
+            // イベントバインド
+            headerBeatMode8Btn.addEventListener('click', () => setBeatMode(8));
+            headerBeatMode16Btn.addEventListener('click', () => setBeatMode(16));
+            if (beatMode8Btn) beatMode8Btn.addEventListener('click', () => setBeatMode(8));
+            if (beatMode16Btn) beatMode16Btn.addEventListener('click', () => setBeatMode(16));
+        }
+
+        // 初期起動
+        window.addEventListener('DOMContentLoaded', () => {
+            initBeatLamps();
+            renderChordDisplay();
+            renderStrokeVisualizer();
+            setupEventListeners();
+        });
+    </script>
+</body>
+</html>
