@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ギターチューナー</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #0f172a; color: #f8fafc; font-family: 'Inter', sans-serif; touch-action: manipulation; }
+        .gradient-glow { box-shadow: 0 0 20px rgba(59, 130, 246, 0.5); }
+        .success-flash { animation: flash 0.5s ease-out; }
+        @keyframes flash { 0% { border-color: #22c55e; box-shadow: 0 0 30px #22c55e; } 100% { border-color: transparent; } }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col p-4 md:p-8">
+
+    <header class="text-center mb-8">
+        <h1 class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400">Pro Tuner</h1>
+        <p class="text-slate-400 text-sm mt-1">Standard E Tuning</p>
+    </header>
+
+    <div id="tuner-card" class="border-2 border-slate-700 rounded-3xl p-6 bg-slate-800 flex flex-col items-center mb-8 transition-all duration-300">
+        <div id="note-display" class="text-7xl font-mono font-bold mb-4">-</div>
+        <div class="w-full h-4 bg-slate-900 rounded-full overflow-hidden flex">
+            <div id="indicator-bar" class="w-1/2 bg-blue-500 transition-all duration-100"></div>
+        </div>
+        <p id="status-text" class="mt-4 text-sm uppercase tracking-widest font-semibold text-slate-400">Tap Start to Enable Mic</p>
+    </div>
+
+    <div class="grid grid-cols-3 gap-3 mb-8">
+        <button onclick="playNote(329.63, 'E')" class="p-4 bg-slate-700 rounded-xl active:bg-blue-600 transition">E (6)</button>
+        <button onclick="playNote(220.00, 'A')" class="p-4 bg-slate-700 rounded-xl active:bg-blue-600 transition">A (5)</button>
+        <button onclick="playNote(146.83, 'D')" class="p-4 bg-slate-700 rounded-xl active:bg-blue-600 transition">D (4)</button>
+        <button onclick="playNote(196.00, 'G')" class="p-4 bg-slate-700 rounded-xl active:bg-blue-600 transition">G (3)</button>
+        <button onclick="playNote(246.94, 'B')" class="p-4 bg-slate-700 rounded-xl active:bg-blue-600 transition">B (2)</button>
+        <button onclick="playNote(329.63, 'E')" class="p-4 bg-slate-700 rounded-xl active:bg-blue-600 transition">E (1)</button>
+    </div>
+
+    <button id="start-btn" class="w-full py-4 bg-emerald-600 rounded-2xl font-bold text-lg mb-8">ENABLE MICROPHONE</button>
+
+    <div class="bg-slate-900 p-4 rounded-xl text-xs text-slate-400 space-y-2">
+        <h3 class="font-bold text-slate-200">Tips</h3>
+        <p>1. 静かな環境で測定してください。</p>
+        <p>2. ギターのヘッドにスマホを近づけると精度が上がります。</p>
+        <p>3. 弦を軽く弾き、音が安定してから確認してください。</p>
+    </div>
+
+    <script>
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        let analyzer, bufferLength, dataArray;
+
+        async function initAudio() {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const source = audioCtx.createMediaStreamSource(stream);
+            analyzer = audioCtx.createAnalyser();
+            analyzer.fftSize = 2048;
+            source.connect(analyzer);
+            bufferLength = analyzer.frequencyBinCount;
+            dataArray = new Uint8Array(bufferLength);
+            update();
+        }
+
+        function playNote(freq, name) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 1.5);
+            osc.stop(audioCtx.currentTime + 1.5);
+        }
+
+        function update() {
+            analyzer.getByteFrequencyData(dataArray);
+            let maxVal = 0;
+            let maxIdx = 0;
+            for(let i = 0; i < bufferLength; i++) {
+                if(dataArray[i] > maxVal) { maxVal = dataArray[i]; maxIdx = i; }
+            }
+            const freq = maxIdx * audioCtx.sampleRate / analyzer.fftSize;
+            
+            if(maxVal > 100) {
+                document.getElementById('note-display').textContent = freq.toFixed(0) + ' Hz';
+                // 簡易的な偏差表示（中心は基準値に合わせて調整が必要）
+                const indicator = document.getElementById('indicator-bar');
+                indicator.style.width = `${Math.min(Math.max((freq/400)*100, 0), 100)}%`;
+            }
+            requestAnimationFrame(update);
+        }
+
+        document.getElementById('start-btn').addEventListener('click', (e) => {
+            initAudio();
+            e.target.disabled = true;
+            e.target.textContent = "Listening...";
+        });
+    </script>
+</body>
+</html>
