@@ -203,7 +203,12 @@
                 file += '.html';
             }
 
-            return `https://${user}.github.io/${repo}/${file}`;
+            // doron-san.github.io リポジトリの場合はパスにリポジトリ名を含めない
+            if (repo.toLowerCase() === `${user.toLowerCase()}.github.io`) {
+                return `https://${user}.github.io/${file}`;
+            } else {
+                return `https://${user}.github.io/${repo}/${file}`;
+            }
         }
 
         function updateUrl() {
@@ -311,4 +316,3 @@
     </script>
 </body>
 </html>
-
